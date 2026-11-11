@@ -6,14 +6,14 @@ using CConvert.Core;
 namespace CConvert.Tests;
 
 /// <summary>
-/// Chế độ thử nghiệm cho nguồn mới hơn 2024 (2025/2026 chưa có mẫu thật).
-/// File "2025" được mô phỏng từ mẫu 2024: đổi vrsn/fver/form type và chèn thuộc tính lạ.
+/// Experimental mode for source newer than 2024 (2025/2026 has no real samples).
+/// File "2025" is simulated from sample 2024: change vrsn/fver/form type and insert related unusual.
 /// </summary>
 public class ExperimentalTests
 {
     /// <summary>
-    /// Lược đồ 2019 phải đủ: logic thử nghiệm chạy trên mẫu 2024 cho kết quả giống hệt logic đã kiểm chứng
-    /// (nếu lược đồ thiếu một khóa hợp lệ của 2019, khóa đó sẽ bị bỏ nhầm và test này hỏng).
+    /// Schema 2019 must enough: experimental logic runs on sample 2024 produces identical results logic already verified
+    /// (if schema diagram missing one key valid ratio of 2019, key that will be skip wrong and test this broken).
     /// </summary>
     [Theory]
     [MemberData(nameof(SampleFiles.Version25), MemberType = typeof(SampleFiles))]
@@ -76,7 +76,7 @@ public class ExperimentalTests
             var r = Downgrader.Run(fake, output, CorelVersion.V2019);
             Assert.False(r.Success);
             Assert.False(File.Exists(output));
-            Assert.Contains(r.Log, l => l.Level == LogLevel.Error && l.Message.Contains("Text dạng 15"));
+            Assert.Contains(r.Log, l => l.Level == LogLevel.Error && l.Message.Contains("Text form 15"));
         }
         finally
         {
@@ -107,7 +107,7 @@ public class ExperimentalTests
     }
 
     [Fact]
-    public void Probe_recognizes_newer_versions_as_experimental()
+    public void Probe_acceptss_newer_versions_as_experimental()
     {
         Assert.True(CorelVersion.Recognize(2600)!.IsExperimental);
         Assert.Equal("2025?", CorelVersion.Recognize(2600)!.Name);
@@ -116,9 +116,9 @@ public class ExperimentalTests
         Assert.Null(CorelVersion.Recognize(1600));
     }
 
-    // ---------- tiện ích ----------
+    // ---------- utility benefit ----------
 
-    /// <summary>Tạo bản sao "CorelDRAW 2025" (vrsn 2600) của một mẫu 2024, có thể kèm thay đổi lạ.</summary>
+    /// <summary>Create a copy "CorelDRAW 2025" (vrsn 2600) of one sample 2024, optionally with unusual changes.</summary>
     private static string Simulate2025(string source, bool cdssExtraKey = false, uint? txsmVersion = null, uint? extraLodaArg = null)
     {
         var pkg = CdrPackage.Load(source);
@@ -175,7 +175,7 @@ public class ExperimentalTests
         using var za = ZipFile.OpenRead(a);
         using var zb = ZipFile.OpenRead(b);
         foreach (var e in za.Entries.Where(e => e.FullName.StartsWith("content/") || e.FullName == "styles/document.cdss"))
-            Assert.True(Read(e).SequenceEqual(Read(zb.GetEntry(e.FullName)!)), $"{e.FullName} khác nhau");
+            Assert.True(Read(e).SequenceEqual(Read(zb.GetEntry(e.FullName)!)), $"{e.FullName} differ");
     }
 
     private static string ReadEntry(string zip, string name)

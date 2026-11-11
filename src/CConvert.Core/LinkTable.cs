@@ -3,11 +3,11 @@ using System.Buffers.Binary;
 namespace CConvert.Core;
 
 /// <summary>
-/// Bảng liên kết hiệu ứng 'lnkt' trong doc (đổ bóng, contour, extrude… nối nhóm hiệu ứng với đối tượng gốc):
+/// Table link result effect application 'lnkt' in doc (shadows, contour, extrude… join group effect application with object source):
 /// <code>
-///   u32 length, u32 n, u32 offOffsets (=0x0C), u32 offsets[n+1], các mục.
-///   Mục (32 byte trong mẫu): u32 loại (0xE0 bóng, 0x80 contour…), u32 nút nguồn (spnd của lnkg),
-///                            u32 nút đích (spnd của đối tượng), …
+///   u32 length, u32 n, u32 offOffsets (=0x0C), u32 offsets[n+1], the entry.
+///   Entry (32 byte in sample): u32 type (0xE0 shadow, 0x80 contour…), u32 button source (spnd of lnkg),
+///                            u32 button target (spnd of object), …
 /// </code>
 /// </summary>
 public sealed class LinkTable

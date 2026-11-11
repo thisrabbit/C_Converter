@@ -1,8 +1,8 @@
 using System.Text;
 using CConvert.Core;
 
-// cconvert <file.cdr> [...] [--out <thư mục>]
-// Hạ phiên bản xuống CorelDRAW 2019. Không ghi đè file gốc: kết quả là <tên>_2019.cdr.
+// cconvert <file.cdr> [...] [--out <output folder>]
+// Downgrade to CorelDRAW 2019. Never overwrite the source file: the result is <name>_2019.cdr.
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -15,7 +15,7 @@ for (int i = 0; i < args.Length; i++)
 }
 if (inputs.Count == 0)
 {
-    Console.Error.WriteLine("Cách dùng: cconvert <file.cdr> [...] [--out <thư mục>]");
+    Console.Error.WriteLine("Usage: cconvert <file.cdr> [...] [--out <output folder>]");
     return 2;
 }
 
@@ -29,7 +29,7 @@ foreach (string input in inputs)
     var result = Downgrader.Run(input, output, target);
     foreach (var entry in result.Log)
         Console.WriteLine("  " + entry);
-    Console.WriteLine(result.Success ? (result.HasWarnings ? "  → XONG (có cảnh báo)" : "  → XONG") : "  → THẤT BẠI");
+    Console.WriteLine(result.Success ? (result.HasWarnings ? "  → DONE (with warnings)" : "  → DONE") : "  → FAILURE");
     if (!result.Success) failed++;
 }
 return failed == 0 ? 0 : 1;

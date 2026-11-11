@@ -4,28 +4,28 @@ using System.Text;
 
 namespace CdrDump;
 
-/// <summary>Một nút trong cây chunk RIFF.</summary>
+/// <summary>A node in the chunk tree RIFF.</summary>
 public sealed class Chunk
 {
     public required string FourCC { get; init; }
     public string? ListType { get; init; }
-    /// <summary>Offset của header chunk, tính trong bộ đệm <see cref="Source"/>.</summary>
+    /// <summary>Chunk header offset, measured in the <see cref="Source"/>.</summary>
     public long Offset { get; init; }
     public uint Size { get; init; }
-    /// <summary>"file", "zip:&lt;entry&gt;", hoặc "cmpr@0x..." cho dữ liệu đã giải nén.</summary>
+    /// <summary>"file", "zip:&lt;entry&gt;", or "cmpr@0x..." for data that is already decompressed.</summary>
     public required string Source { get; init; }
     public List<Chunk> Children { get; } = new();
     public List<string> Notes { get; } = new();
     public byte[] Preview { get; init; } = Array.Empty<byte>();
-    /// <summary>Nội dung thật của chunk lá (sau khi đi theo con trỏ, nếu có).</summary>
+    /// <summary>Actual leaf-chunk content (after following its child pointer, if present).</summary>
     public byte[] Content { get; init; } = Array.Empty<byte>();
 
     public string Label => ListType is null ? FourCC : $"{FourCC} '{ListType}'";
 }
 
 /// <summary>
-/// Bộ đọc cây RIFF của CorelDRAW. Chỉ hiểu ở mức cấu trúc (chunk/list/cmpr),
-/// KHÔNG diễn giải nội dung đối tượng. Những chỗ dựa trên giả định được đánh dấu "GIẢ ĐỊNH".
+/// CorelDRAW RIFF tree reader. Understands structure only (chunk/list/cmpr),
+/// Does not interpret object content. The details below are inferred from libcdr and marked "ASSUMED".
 /// </summary>
 public sealed class RiffParser
 {
@@ -33,10 +33,10 @@ public sealed class RiffParser
     private readonly IReadOnlyList<(string Name, byte[] Data)>? _dataFiles;
 
     /// <param name="dataFiles">
-    /// Các file trong content/dataFileList.dat (định dạng ZIP có root.dat). Khi có, mỗi chunk lá 16 byte
-    /// trong root.dat là con trỏ (đã kiểm chứng trên mẫu X7–2023):
-    ///   u32 fileIndex (0-based theo dataFileList; 0xFFFFFFFF = dữ liệu nằm ngay trong con trỏ),
-    ///   u32 length, u32 offset (hoặc tối đa 8 byte dữ liệu inline), u32 (luôn 0 trên mẫu hiện có).
+    /// Files are listed in content/dataFileList.dat (inside the ZIP with root.dat). Each chunk leaf has a
+    /// 16-byte pointer in root.dat (verified on samples X7–2023):
+    ///   u32 fileIndex (0-based according to dataFileList; 0xFFFFFFFF = data stored inline in the pointer),
+    ///   u32 length, u32 offset (or an inline 8-byte payload), u32 (always 0 in the samples).
     /// </param>
     public RiffParser(int previewBytes, IReadOnlyList<(string Name, byte[] Data)>? dataFiles = null)
     {
@@ -44,7 +44,7 @@ public sealed class RiffParser
         _dataFiles = dataFiles;
     }
 
-    /// <summary>Đọc nội dung thật của chunk lá (đi theo con trỏ nếu có).</summary>
+    /// <summary>Read actual content of chunk leaf (go according to con pointer if has).</summary>
     private (byte[] Data, string? Note) ResolveLeaf(byte[] buf, int dataStart, int dataEnd)
     {
         byte[] raw = buf.AsSpan(dataStart, dataEnd - dataStart).ToArray();
@@ -55,46 +55,46 @@ public sealed class RiffParser
         uint length = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(4));
         uint offset = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(8));
         uint extra = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(12));
-        string extraNote = extra == 0 ? "" : $" (u32 cuối = 0x{extra:X8}, khác 0!)";
+        string extraNote = extra == 0 ? "" : $" (u32 last = 0x{extra:X8}, different 0!)";
 
         if (index == 0xFFFFFFFF)
         {
             if (length > 8)
-                return (raw, $"CẢNH BÁO: con trỏ inline nhưng length={length} > 8");
+                return (raw, $"WARNING: con pointer inline but length={length} > 8");
             return (raw.AsSpan(8, (int)length).ToArray(), $"→ inline {length} byte");
         }
         if (index >= _dataFiles.Count)
-            return (raw, $"CẢNH BÁO: fileIndex {index} vượt dataFileList ({_dataFiles.Count} file)");
+            return (raw, $"WARNING: fileIndex {index} exceed dataFileList ({_dataFiles.Count} file)");
 
         var (name, data) = _dataFiles[(int)index];
         if ((long)offset + length > data.Length)
-            return (raw, $"CẢNH BÁO: {name}[0x{offset:X}+{length}] vượt kích thước file ({data.Length})");
+            return (raw, $"WARNING: {name}[0x{offset:X}+{length}] exceeds the file size ({data.Length})");
         return (data.AsSpan((int)offset, (int)length).ToArray(), $"→ {name} @0x{offset:X} len={length}{extraNote}");
     }
 
     public Chunk ParseRoot(byte[] buf, string source)
     {
         if (buf.Length < 12 || Ascii(buf, 0, 4) != "RIFF")
-            throw new InvalidDataException("Không phải RIFF (thiếu chữ ký 'RIFF').");
+            throw new InvalidDataException("Not must RIFF (missing text character 'RIFF').");
 
         uint size = BinaryPrimitives.ReadUInt32LittleEndian(buf.AsSpan(4));
         string form = Ascii(buf, 8, 4);
         var root = new Chunk { FourCC = "RIFF", ListType = form, Offset = 0, Size = size, Source = source };
 
         if (!form.StartsWith("CDR", StringComparison.Ordinal))
-            root.Notes.Add($"Form type '{form}' không bắt đầu bằng 'CDR' — có thể không phải file CorelDRAW.");
+            root.Notes.Add($"Form type '{form}' does not begin with 'CDR' — is not a CorelDRAW file.");
         else
-            root.Notes.Add($"Ký tự phiên bản trong form type: '{form[3]}' (bảng tra ký tự→phiên bản là GIẢ ĐỊNH, ưu tiên giá trị chunk 'vrsn').");
+            root.Notes.Add($"Version marker in form type: '{form[3]}' (the character-to-version mapping is ASSUMED; the 'vrsn' chunk takes priority).");
 
         long end = 8L + size;
         if (end > buf.Length)
         {
-            root.Notes.Add($"CẢNH BÁO: kích thước RIFF khai báo ({size}) vượt quá độ dài dữ liệu ({buf.Length - 8}).");
+            root.Notes.Add($"WARNING: RIFF size field ({size}) exceeds the available uint32 data ({buf.Length - 8}).");
             end = buf.Length;
         }
         else if (end < buf.Length)
         {
-            root.Notes.Add($"Có {buf.Length - end} byte nằm sau chunk RIFF gốc.");
+            root.Notes.Add($"Has {buf.Length - end} byte remain after chunk RIFF source.");
         }
 
         ParseChildren(buf, 12, (int)end, root, source, blockSizes: null);
@@ -109,7 +109,7 @@ public sealed class RiffParser
             string fourcc = Ascii(buf, pos, 4);
             if (!IsPlausibleFourCC(fourcc))
             {
-                parent.Notes.Add($"Dừng tại 0x{pos:X8}: '{Escape(buf, pos, 4)}' không giống FourCC ({end - pos} byte còn lại chưa phân tích).");
+                parent.Notes.Add($"Stop at 0x{pos:X8}: '{Escape(buf, pos, 4)}' an unrecognized FourCC ({end - pos} bytes remain uninterpreted).");
                 return;
             }
 
@@ -117,18 +117,18 @@ public sealed class RiffParser
             uint size = rawSize;
             var notes = new List<string>();
 
-            // GIẢ ĐỊNH (theo cách libcdr xử lý cmpr): trong luồng đã giải nén, trường "size"
-            // là CHỈ SỐ vào bảng kích thước khối, không phải kích thước thật.
+            // ASSUMED (based on how libcdr processes cmpr): the stream is already decompressed, and the "size"
+            // field is only an index into the block-size table, not the actual size.
             if (blockSizes is not null)
             {
                 if (rawSize < blockSizes.Length)
                 {
                     size = blockSizes[rawSize];
-                    notes.Add($"size là chỉ số #{rawSize} trong bảng khối → {size}");
+                    notes.Add($"size is only number #{rawSize} in table block → {size}");
                 }
                 else
                 {
-                    notes.Add($"CẢNH BÁO: chỉ số khối {rawSize} vượt bảng ({blockSizes.Length} phần tử); dùng như kích thước thật.");
+                    notes.Add($"WARNING: block index {rawSize} exceeds the table ({blockSizes.Length} elements); using it as the actual size.");
                 }
             }
 
@@ -137,7 +137,7 @@ public sealed class RiffParser
             bool overflow = dataEndL > end;
             int dataEnd = overflow ? end : (int)dataEndL;
             if (overflow)
-                notes.Add($"CẢNH BÁO: chunk khai báo {size} byte nhưng vượt biên chunk cha ({end - dataStart} byte khả dụng).");
+                notes.Add($"WARNING: chunk khai report {size} byte but exceed edge chunk cha ({end - dataStart} byte ability use).");
 
             bool isList = fourcc is "LIST" or "RIFF";
             string? listType = isList && dataEnd - dataStart >= 4 ? Ascii(buf, dataStart, 4) : null;
@@ -173,8 +173,8 @@ public sealed class RiffParser
                 return;
 
             pos = dataEnd;
-            // Đệm RIFF chuẩn: chunk có kích thước lẻ được đệm 1 byte. Không chắc CDR luôn tuân thủ,
-            // nên chỉ nhảy qua byte đệm khi vị trí sau đệm trông giống FourCC hợp lệ.
+            // RIFF padding: an odd chunk size is followed by one padding byte. It is not known whether every CDR file follows this.
+            // should only jump via byte padding when check whether the next FourCC is valid after padding.
             if ((size & 1) == 1 && (pos + 1 == end
                 || (pos + 1 + 4 <= end && !IsPlausibleFourCC(Ascii(buf, pos, 4)) && IsPlausibleFourCC(Ascii(buf, pos + 1, 4)))))
             {
@@ -183,19 +183,19 @@ public sealed class RiffParser
         }
 
         if (pos < end)
-            parent.Notes.Add($"{end - pos} byte thừa ở cuối (0x{pos:X8}).");
+            parent.Notes.Add($"{end - pos} byte extra at last (0x{pos:X8}).");
     }
 
     /// <summary>
-    /// Chunk 'cmpr' (CDR khoảng v8–X3). Bố cục dưới đây là GIẢ ĐỊNH theo đọc mã libcdr, cần kiểm chứng bằng file mẫu:
+    /// Chunk 'cmpr' (CDR around v8–X3). The layout below is ASSUMED based on libcdr's reader and requires sample verification:
     ///   u32 compressedSize, u32 uncompressedSize, u32 blockSizesCompressedSize, u32 blockSizesUncompressedSize,
-    ///   "CPng" u16 u16, [zlib dữ liệu chunk], "CPng" u16 u16, [zlib bảng kích thước khối (mảng u32)].
+    ///   "CPng" u16 u16, [zlib data chunk], "CPng" u16 u16, [zlib block-size table (array u32)].
     /// </summary>
     private void ParseCmpr(byte[] buf, int start, int end, Chunk chunk)
     {
         if (end - start < 24)
         {
-            chunk.Notes.Add("cmpr quá ngắn để có header.");
+            chunk.Notes.Add("cmpr chunk is too short to contain a header.");
             return;
         }
 
@@ -209,21 +209,21 @@ public sealed class RiffParser
         int sig1 = IndexOf(buf, "CPng"u8, start, end);
         if (sig1 < 0)
         {
-            chunk.Notes.Add("Không thấy chữ ký 'CPng' — bố cục cmpr khác giả định.");
+            chunk.Notes.Add("Could not find the 'CPng' signature — the cmpr layout differs from the assumption.");
             return;
         }
         if (sig1 != start + 16)
-            chunk.Notes.Add($"'CPng' đầu tiên ở +{sig1 - start}, không phải +16 như giả định.");
+            chunk.Notes.Add($"'CPng' first first at +{sig1 - start}, not +16 as assume defined.");
 
         byte[]? data = TryInflate(buf, sig1 + 8, end, out string how1);
         if (data is null)
         {
-            chunk.Notes.Add($"Giải nén dữ liệu thất bại: {how1}");
+            chunk.Notes.Add($"Data decompression failed: {how1}");
             return;
         }
-        chunk.Notes.Add($"Giải nén dữ liệu: {data.Length} byte ({how1}){(data.Length == uncompressed ? "" : $" — KHÁC uncompressed={uncompressed}")}");
+        chunk.Notes.Add($"Decompressed data: {data.Length} byte ({how1}){(data.Length == uncompressed ? "" : $" — DIFFERENT uncompressed={uncompressed}")}");
 
-        // Vị trí khối thứ hai: thử theo compressedSize trước, nếu không khớp thì tìm 'CPng' tiếp theo.
+        // Position position block item second: test according to compressedSize before, if not match then find 'CPng' next according to.
         int sig2 = sig1 + (int)Math.Min(compressed, (uint)(end - sig1));
         if (sig2 + 4 > end || Ascii(buf, sig2, 4) != "CPng")
             sig2 = IndexOf(buf, "CPng"u8, sig1 + 8, end);
@@ -237,16 +237,16 @@ public sealed class RiffParser
                 blockSizes = new uint[bs.Length / 4];
                 for (int i = 0; i < blockSizes.Length; i++)
                     blockSizes[i] = BinaryPrimitives.ReadUInt32LittleEndian(bs.AsSpan(i * 4));
-                chunk.Notes.Add($"Bảng kích thước khối: {blockSizes.Length} phần tử ({how2}).");
+                chunk.Notes.Add($"Block-size table: {blockSizes.Length} elements ({how2}).");
             }
             else
             {
-                chunk.Notes.Add($"Giải nén bảng kích thước khối thất bại: {how2}");
+                chunk.Notes.Add($"Failed to parse the compressed block-size table: {how2}");
             }
         }
         else
         {
-            chunk.Notes.Add("Không tìm thấy khối 'CPng' thứ hai (bảng kích thước khối).");
+            chunk.Notes.Add("Could not find the second 'CPng' block (the block-size table).");
         }
 
         string src = $"cmpr@0x{chunk.Offset:X8}";
@@ -257,7 +257,7 @@ public sealed class RiffParser
     {
         if (start >= end)
         {
-            how = "không còn dữ liệu";
+            how = "no data remains";
             return null;
         }
         foreach (bool zlib in new[] { true, false })
@@ -270,7 +270,7 @@ public sealed class RiffParser
                 z.CopyTo(output);
                 if (output.Length > 0)
                 {
-                    how = zlib ? "zlib" : "deflate thô";
+                    how = zlib ? "zlib" : "deflate raw";
                     return output.ToArray();
                 }
             }
@@ -278,11 +278,11 @@ public sealed class RiffParser
             {
             }
         }
-        how = "không phải zlib/deflate hợp lệ";
+        how = "not valid zlib/raw deflate";
         return null;
     }
 
-    /// <summary>vrsn = phiên bản*100 + bản cập nhật (vd 1700, 2430). 17→2024 đã kiểm chứng bằng mẫu.</summary>
+    /// <summary>vrsn = version*100 + update version (vd 1700, 2430). 17→2024 already verified with sample.</summary>
     public static string DescribeVersion(ushort v)
     {
         int major = v / 100;
@@ -305,7 +305,7 @@ public sealed class RiffParser
             21 => "CorelDRAW 2019",
             22 => "CorelDRAW 2020",
             23 => "CorelDRAW 2021",
-            _ => "không rõ",
+            _ => "unknown",
         },
         };
         return $"vrsn = {v} → {name}";

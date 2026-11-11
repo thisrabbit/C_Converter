@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace CConvert.Core;
 
-/// <summary>Đọc/ghi JSON theo đúng định dạng CorelDRAW (để file xuất ra giống file Corel tự lưu).</summary>
+/// <summary>Read/write JSON according to correct defined form CorelDRAW (to file export out same file Corel saved automatically).</summary>
 public static class CorelJson
 {
     private static readonly JsonSerializerOptions Indented = new()
@@ -19,7 +19,7 @@ public static class CorelJson
 
     public static string ToCompact(JsonNode node) => node.ToJsonString(Compact);
 
-    /// <summary>Thụt 2 dấu cách, "khóa": giá trị, '\n', object/mảng rỗng viết "{" + xuống dòng + "}".</summary>
+    /// <summary>Indent 2 mark way, "key": value, '\n', object/array empty write "{" + newline + "}".</summary>
     public static string ToIndented(JsonNode node, string newline = "\n")
     {
         string json = node.ToJsonString(Indented).ReplaceLineEndings("\n");
@@ -30,8 +30,8 @@ public static class CorelJson
     }
 
     /// <summary>
-    /// Bỏ các khóa JSON chỉ có từ CorelDRAW 2020 trở lên (font_axes; bullet nhiều cấp trong "paragraph").
-    /// Trả về số khóa đã bỏ.
+    /// Skip the key JSON only has from CorelDRAW 2020 become up (font_axes; bullet many level in "paragraph").
+    /// Return about number key removed.
     /// </summary>
     public static int StripPost2019Keys(JsonNode? root, Action<string> warn)
     {
@@ -43,7 +43,7 @@ public static class CorelJson
                 if (obj["font_axes"] is JsonValue axes)
                 {
                     if (axes.TryGetValue(out string? s) && s.Length > 0)
-                        warn($"Dùng font biến thể (font_axes = \"{s}\") — CorelDRAW 2019 không hỗ trợ, sẽ dùng kiểu font mặc định.");
+                        warn($"Variable font used (font_axes = \"{s}\") — CorelDRAW 2019 unsupported, will use default font style.");
                     obj.Remove("font_axes");
                     removed++;
                 }
@@ -70,9 +70,9 @@ public static class CorelJson
     }
 
     /// <summary>
-    /// Chế độ thử nghiệm (nguồn mới hơn 2024): bỏ mọi khóa không có trong lược đồ CorelDRAW 2019
-    /// (<see cref="Schema2019"/>, rút từ file 2019 thật). Chỉ lọc trong object có tên đã biết; con của object
-    /// động (tên style, tên cấp…) và object lạ được giữ nguyên. Trả về số khóa đã bỏ; tên khóa ghi vào <paramref name="removedNames"/>.
+    /// Experimental mode (source newer than 2024): skip keys absent from the CorelDRAW 2019 schema
+    /// (<see cref="Schema2019"/>, derived from file 2019 real). Only filter in object has name already known; con of object
+    /// dynamic (style names, level names…) and object unusual is unchanged. Return about number key removed; name key write into <paramref name="removedNames"/>.
     /// </summary>
     public static int StripUnknownKeys(JsonNode? root, ISet<string> removedNames)
     {
@@ -103,7 +103,7 @@ public static class CorelJson
         return removed;
     }
 
-    // Windows-1252 0x80–0x9F → Unicode (0 = không dùng).
+    // Windows-1252 0x80–0x9F → Unicode (0 = Do not use).
     private static readonly ushort[] Cp1252High =
     [
         0x20AC, 0, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0, 0x017D, 0,
@@ -111,8 +111,8 @@ public static class CorelJson
     ];
 
     /// <summary>
-    /// bulletChar là u32 little-endian dạng hex. 2020+ giữ mã byte 0x80–0x9F của font; 2019 lưu Unicode
-    /// (mẫu thật: "9f000000" → "78010000" = 'Ÿ'). Trả về null nếu không cần đổi.
+    /// bulletChar is u32 little-endian form hex. 2020+ keep code byte 0x80–0x9F of font; 2019 save Unicode
+    /// (real sample: "9f000000" → "78010000" = 'Ÿ'). Returns null when no change is required.
     /// </summary>
     public static string? MapBulletChar(string hex)
     {
@@ -123,11 +123,11 @@ public static class CorelJson
         return System.Convert.ToHexString(BitConverter.GetBytes((uint)Cp1252High[code - 0x80])).ToLowerInvariant();
     }
 
-    // Khóa trong "paragraph" có từ 2020 trở lên mà 2019 không có.
+    // Key in "paragraph" has from 2020 become up that 2019 does not have.
     public static readonly string[] ParagraphKeysAfter2019 =
         ["bulletFirstCharIndentIncludesBullet", "bulletFormat", "bulletInheritFont", "bulletNumberStyle", "levels", "numberInheritFont"];
 
-    /// <summary>Chèn khóa vào object theo thứ tự chữ cái (Corel ghi khóa trong "paragraph" theo thứ tự này).</summary>
+    /// <summary>Insert a key into an object according to the containing text object (Corel writes this key in "paragraph" objects).</summary>
     public static void InsertSorted(JsonObject obj, string key, JsonNode value)
     {
         var items = obj.ToList();

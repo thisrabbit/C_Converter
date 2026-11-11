@@ -1,7 +1,7 @@
-"""Công cụ phân tích nhanh (chỉ dùng khi nghiên cứu) cho .cdr dạng ZIP + root.dat.
+"""Work specific classify integral nhanh (only use when research save) for .cdr ZIP format + root.dat.
 
-Đọc cây RIFF trong content/root.dat, đi theo con trỏ 16 byte sang content/data/*.dat,
-trả về danh sách (đường dẫn, fourcc, nội dung) để so sánh giữa các file.
+Read tree RIFF in content/root.dat, go according to con pointer 16 byte sang content/data/*.dat,
+return a list of chunks (path, FourCC, and content) for comparison between files.
 """
 import struct
 import sys

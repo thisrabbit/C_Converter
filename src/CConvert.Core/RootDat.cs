@@ -4,13 +4,13 @@ using System.Text;
 namespace CConvert.Core;
 
 /// <summary>
-/// content/root.dat: RIFF "CDR?" mà mỗi chunk lá là con trỏ 16 byte
-/// (u32 fileIndex | 0xFFFFFFFF = inline, u32 length, u32 offset hoặc ≤8 byte inline, u32 0).
+/// content/root.dat: RIFF "CDR?" that each chunk leaf is con pointer 16 byte
+/// (u32 fileIndex | 0xFFFFFFFF = inline, u32 length, u32 offset or ≤8 byte inline, u32 0).
 /// </summary>
 public sealed class RootDat
 {
-    /// <param name="Path">Đường dẫn LIST, vd "/page/gobj/layr/obj/lgob/loda".</param>
-    /// <param name="Parent">Số thứ tự của LIST cha (để nhóm các chunk cùng một đối tượng).</param>
+    /// <param name="Path">Path lead LIST, vd "/page/gobj/layr/obj/lgob/loda".</param>
+    /// <param name="Parent">Number item automatically of LIST cha (to group the chunk plus one object).</param>
     public sealed record Leaf(string FourCC, string Path, int Parent, int PointerOffset, uint FileIndex, uint Length, uint DataOffset)
     {
         public bool Inline => FileIndex == 0xFFFFFFFF;
@@ -24,10 +24,10 @@ public sealed class RootDat
     {
         Bytes = bytes;
         if (bytes.Length < 12 || Ascii(0) != "RIFF" || Ascii(8, 3) != "CDR")
-            throw new InvalidDataException("content/root.dat không phải RIFF 'CDR?'.");
+            throw new InvalidDataException("content/root.dat not RIFF 'CDR?'.");
         uint size = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4));
         if (8L + size != bytes.Length)
-            throw new InvalidDataException($"Kích thước RIFF ({size}) không khớp độ dài root.dat ({bytes.Length}).");
+            throw new InvalidDataException($"Size size RIFF ({size}) not match uint32 root.dat ({bytes.Length}).");
         Walk(12, bytes.Length, "");
     }
 
@@ -39,7 +39,7 @@ public sealed class RootDat
 
     public Leaf? Find(string fourcc) => Leaves.FirstOrDefault(l => l.FourCC == fourcc);
 
-    /// <summary>Đọc nội dung chunk lá; dataFiles theo thứ tự trong dataFileList.</summary>
+    /// <summary>Read content chunk leaf; dataFiles according to item automatically in dataFileList.</summary>
     public byte[] Read(Leaf leaf, IReadOnlyList<byte[]> dataFiles)
     {
         if (leaf.Inline)
@@ -49,15 +49,15 @@ public sealed class RootDat
     }
 
     /// <summary>
-    /// Tạo root.dat mới không còn các chunk được chọn: <paramref name="removeList"/> nhận chỉ số trong
-    /// <see cref="Lists"/>, <paramref name="removeLeaf"/> nhận chỉ số trong <see cref="Leaves"/>.
-    /// Kích thước các LIST cha và RIFF được tính lại. Dữ liệu trong file .dat không bị xóa (chỉ không còn được trỏ tới).
-    /// Phải gọi trước mọi <see cref="Replace"/> vì chỉ số chunk thay đổi.
+    /// Create root.dat new no longer the chunk is choose: <paramref name="removeList"/> accepts only number in
+    /// <see cref="Lists"/>, <paramref name="removeLeaf"/> accepts only number in <see cref="Leaves"/>.
+    /// Recalculate LIST and RIFF sizes. Data in .dat files is not deleted; it is only no longer referenced.
+    /// Call before every <see cref="Replace"/> because only the changed chunk.
     /// </summary>
     public RootDat Without(Func<int, bool> removeList, Func<int, bool> removeLeaf)
     {
         if (_replacements.Count > 0)
-            throw new InvalidOperationException("Xóa chunk phải làm trước khi thay nội dung.");
+            throw new InvalidOperationException("Delete the chunk before replacing its content.");
         int listIndex = 0, leafIndex = 0;
         using var ms = new MemoryStream(Bytes.Length);
         ms.Write(Bytes, 0, 12);
@@ -66,7 +66,7 @@ public sealed class RootDat
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(4), (uint)(result.Length - 8));
         return new RootDat(result);
 
-        // Duyệt theo đúng thứ tự Walk() để chỉ số LIST/lá khớp với Lists/Leaves.
+        // iterate according to correct behavior automatically Walk() to only number LIST/leaf match with Lists/Leaves.
         void Copy(int pos, int end)
         {
             while (pos + 8 <= end)
@@ -103,7 +103,7 @@ public sealed class RootDat
             }
         }
 
-        // Bỏ qua cả cây con: vẫn phải đếm LIST/lá bên trong để giữ đúng chỉ số.
+        // Skip all child nodes, but still count LIST/leaf nodes to preserve correct offsets.
         void SkipLists(int pos, int end)
         {
             while (pos + 8 <= end)
@@ -119,22 +119,22 @@ public sealed class RootDat
 
     private readonly Dictionary<int, byte[]> _replacements = new();
 
-    /// <summary>Đặt nội dung mới cho chunk lá (được áp dụng khi gọi <see cref="Rebuild"/>).</summary>
+    /// <summary>Set content new for chunk leaf (is apply use when call <see cref="Rebuild"/>).</summary>
     public void Replace(Leaf leaf, byte[] content)
     {
         int i = Leaves.IndexOf(leaf);
-        if (i < 0) throw new ArgumentException("Chunk không thuộc root.dat này.", nameof(leaf));
+        if (i < 0) throw new ArgumentException("Chunk does not belong to this root.dat.", nameof(leaf));
         if (leaf.Inline && content.Length > 8)
-            throw new InvalidOperationException($"Chunk inline {leaf.FourCC} không thể dài hơn 8 byte.");
+            throw new InvalidOperationException($"Chunk inline {leaf.FourCC} cannot long more 8 byte.");
         _replacements[i] = content;
     }
 
     public bool HasReplacements => _replacements.Count > 0;
 
     /// <summary>
-    /// Dựng lại các file dữ liệu theo nội dung đã thay và cập nhật mọi con trỏ trong root.dat.
-    /// Byte không thuộc chunk nào (khoảng trống) được giữ nguyên vị trí tương đối.
-    /// Từ chối nếu hai con trỏ chồng lên nhau (không biết cách dịch an toàn).
+    /// Rebuild file data from the updated content and update every child pointer in root.dat.
+    /// Bytes not belonging to any chunk (usually padding) remain unchanged, as do the corresponding positions.
+    /// From reject if second con pointer overlap up nhau (not known way translate an entire).
     /// </summary>
     public List<byte[]> Rebuild(IReadOnlyList<byte[]> dataFiles)
     {
@@ -157,7 +157,7 @@ public sealed class RootDat
             foreach (var (leaf, index) in refs)
             {
                 if (leaf.DataOffset < cursor)
-                    throw new InvalidDataException($"Hai chunk chồng lên nhau trong file dữ liệu #{f} tại 0x{leaf.DataOffset:X}.");
+                    throw new InvalidDataException($"Hai chunk overlap up nhau in file data #{f} at 0x{leaf.DataOffset:X}.");
                 ms.Write(src, (int)cursor, (int)(leaf.DataOffset - cursor));
                 byte[] content = _replacements.TryGetValue(index, out var r) ? r : src.AsSpan((int)leaf.DataOffset, (int)leaf.Length).ToArray();
                 var p = Bytes.AsSpan(leaf.PointerOffset);
@@ -183,15 +183,15 @@ public sealed class RootDat
         return result;
     }
 
-    /// <summary>Ghi đè dữ liệu inline (không đổi độ dài).</summary>
+    /// <summary>Record overwrite data inline (not change uint32).</summary>
     public void WriteInline(Leaf leaf, ReadOnlySpan<byte> data)
     {
         if (!leaf.Inline || data.Length != leaf.Length)
-            throw new InvalidOperationException($"Chunk {leaf.FourCC} không phải inline {data.Length} byte.");
+            throw new InvalidOperationException($"Chunk {leaf.FourCC} not inline {data.Length} byte.");
         data.CopyTo(Bytes.AsSpan(leaf.PointerOffset + 8));
     }
 
-    /// <summary>Các LIST theo thứ tự gặp: kiểu và chỉ số LIST cha (-1 = gốc).</summary>
+    /// <summary>The LIST according to item automatically encounter: type and only number LIST cha (-1 = source).</summary>
     public List<(string Type, int Parent)> Lists { get; } = new();
 
     private void Walk(int pos, int end, string prefix, int parent = -1)
@@ -202,7 +202,7 @@ public sealed class RootDat
             uint size = BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan(pos + 4));
             int ds = pos + 8;
             if (ds + size > end)
-                throw new InvalidDataException($"Chunk '{cc}' tại 0x{pos:X} vượt biên.");
+                throw new InvalidDataException($"Chunk '{cc}' at 0x{pos:X} exceed edge.");
             if (cc == "LIST")
             {
                 string type = Ascii(ds).TrimEnd();
@@ -213,7 +213,7 @@ public sealed class RootDat
             else
             {
                 if (size != 16)
-                    throw new InvalidDataException($"Chunk lá '{cc}' tại 0x{pos:X} dài {size}, không phải con trỏ 16 byte.");
+                    throw new InvalidDataException($"Chunk leaf '{cc}' at 0x{pos:X} long {size}, not con pointer 16 byte.");
                 var s = Bytes.AsSpan(ds);
                 Leaves.Add(new Leaf(cc, prefix + "/" + cc, parent, ds,
                     BinaryPrimitives.ReadUInt32LittleEndian(s),

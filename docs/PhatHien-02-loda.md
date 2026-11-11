@@ -1,67 +1,67 @@
-# Phát hiện 02 — Quy tắc hạ 2020–2024 → 2019 (bản ghi đối tượng, text, hiệu ứng)
+# Finding 02 — Rule downgrade 2020–2024 → 2019 (record object, text, effect application)
 
-Nguồn dữ liệu: 45 mẫu do `tools/harness/make-samples.ps1` vẽ trong CorelDRAW 2024 (v25.0.0.230) và lưu ra 2 bản
-(`_25` gốc, `_21` = Corel tự Save As 2019), cộng 5 file thật. Kiểm chứng bằng CorelDRAW 2019 (v21.2.0.706) thật qua
+Source data: 45 samples drawn by `tools/harness/make-samples.ps1` in CorelDRAW 2024 (v25.0.0.230) and saved in two versions
+(`_25` source, `_21` = Corel saved automatically with Save As 2019), plus 5 real files. Verified with CorelDRAW 2019 (v21.2.0.706) real via
 `tools/harness/verify-2019.ps1`.
 
-Mọi điều dưới đây **đã kiểm chứng**, trừ chỗ ghi [GĐ].
+All statements below were verified, except where marked [Phase].
 
-## 1. Bản ghi đối tượng `loda`
+## 1. Object record `loda`
 ```
 u32 length, u32 n, u32 offOffsets (=0x14), u32 offTypes (=0x14+4(n+1)), u32 objType,
-u32 offsets[n+1]          (offset cuối = length)
-u32 types[n]              (tăng dần)
-dữ liệu                   offsets[i] thuộc về types[n-1-i] → dữ liệu xếp theo kiểu GIẢM dần
+u32 offsets[n+1]          (offset last = length)
+u32 types[n]              (in ascending order)
+data                   offsets[i] corresponds to types[n-1-i] → data is ordered by descending type
 ```
-Đọc/ghi lại trùng từng byte trên mọi bản ghi của mọi mẫu (test `Loda_roundtrips_byte_for_byte`).
+Read/write round-trips are byte-for-byte identical for every record in every sample (test `Loda_roundtrips_byte_for_byte`).
 
-objType gặp: 0 nhóm/trang/layer, 1 chữ nhật, 2 ellipse, 3 đường/curve, 4 artistic text, 5 bitmap, 6 paragraph text,
-8 extrude, 11/12/17 bản ghi layer, 15 contour, 20 polygon/star, 23 đổ bóng.
+objType encounter: 0 group/page/layer, 1 rectangle, 2 ellipse, 3 path/curve, 4 artistic text, 5 bitmap, 6 paragraph text,
+8 extrude, 11/12/17 layer record, 15 contour, 20 polygon/star, 23 shadows.
 
-Đối số thường gặp: 0x0A số thứ tự [GĐ], 0x14 tham chiếu fill, 0x1E hình học, 0x64 liên kết, **0xC9 style JSON**
-(`u32 1, u32 độ dài, JSON gọn`), 0xBB8 dữ liệu hiệu ứng.
+Common argument numbers include: 0x0A ordinal [Phase], 0x14 reference fill, 0x1E geometry, 0x64 link result, **0xC9 style JSON**
+(`u32 1, uint32 length, JSON compact`), 0xBB8 effect data.
 
-## 2. Quy tắc chuyển
-| # | Quy tắc | Bằng chứng |
+## 2. Rule convert
+| # | Rule | With verify |
 |---|---|---|
-| 1 | `loda` trong **page / grp / lnkg** thiếu style 0xC9 → thêm `{}`. Layer (`layr`) thì **không**. | 48 bản ghi; thống kê theo loại LIST chứa |
-| 2 | Bản ghi trang được thêm style → xóa bit 0x40 ở byte đầu `flgs` của trang | mọi mẫu do COM tạo |
-| 3 | JSON style (trong `loda`, `txsm`, `styles/document.cdss`): bỏ `font_axes`; trong `paragraph` bỏ `levels`, `bulletFormat`, `bulletInheritFont`, `bulletNumberStyle`, `bulletFirstCharIndentIncludesBullet`, `numberInheritFont` | T14, T15, T36, T40 |
-| 4 | `bulletChar` mã 0x80–0x9F (byte CP1252) → Unicode (`9f000000` → `78010000` 'Ÿ') | file thật R02, R05 |
-| 5 | Đổ bóng (objType 23, đối số 0xBB8 dài 127, header u32 2200): header → 1300, xóa 4 byte tại 0x7B rồi 4 byte tại 0x1D (vị trí theo bản 2200) | 4 biến thể: phẳng, mờ, phối cảnh, bóng chữ |
-| 6 | **Bóng trong** (0xBB8 @0x18 = 4, có từ 2023): 2019 không có, mở là **crash**. Gỡ nhóm `lnkg`, mục tương ứng trong `lnkt` (bỏ cả `lnkt` nếu rỗng) và `spnd` không còn dùng | T32: 3/3 lần mở OK, ảnh trùng bản gốc 2024 |
-| 7 | `txsm` (text) dạng 14 → 13: u32 @0x14 = 13; JSON (u32 độ dài + JSON thụt lề 2 cách) theo quy tắc 3, `paragraph` thiếu `bulletFirstCharIndent` → thêm `"48676"`; bullet mặc định ('•' Arial 12pt, `63500`) → `48676`; bỏ cấu trúc danh sách cuối bản ghi (`u32 n, n×(u32 c, c×u32)`, sau chuỗi text + byte 0) | T14, T23d, T40 trùng từng byte với Corel |
+| 1 | `loda` in **page / grp / lnkg** without style 0xC9 → add `{}`. Do not add it to layers (`layr`). | 48 record; statistics grouped by containing LIST type |
+| 2 | Page records receive a style → clear bit 0x40 in the first `flgs` byte | every sample created through COM |
+| 3 | JSON style (in `loda`, `txsm`, `styles/document.cdss`): skip `font_axes`; in `paragraph` skip `levels`, `bulletFormat`, `bulletInheritFont`, `bulletNumberStyle`, `bulletFirstCharIndentIncludesBullet`, `numberInheritFont` | T14, T15, T36, T40 |
+| 4 | `bulletChar` code 0x80–0x9F (byte CP1252) → Unicode (`9f000000` → `78010000` 'Ÿ') | real file R02, R05 |
+| 5 | Drop shadow (objType 23, object number 0xBB8 long 127, header u32 2200): header → 1300, delete 4 byte at 0x7B then 4 byte at 0x1D (offsets defined by version 2200) | four variants: flat, soft, perspective, and text shadow |
+| 6 | **Inner shadow** (0xBB8 @0x18 = 4, introduced in 2023): 2019 does not support it; opening causes a **crash**. Remove group `lnkg`, corresponding entry in `lnkt` (skip `lnkt` if empty) and the unused `spnd` data | T32: 3/3 time open OK, image identical source version 2024 |
+| 7 | `txsm` (text) form 14 → 13: u32 @0x14 = 13; JSON (uint32 length followed by JSON indented by two spaces) using rule 3, `paragraph` missing `bulletFirstCharIndent` → add `"48676"`; bullet default ('•' Arial 12pt, `63500`) → `48676`; skip the trailing record list (`u32 n, n×(u32 c, c×u32)`, followed by the text string and byte 0) | T14, T23d, T40 byte-for-byte identical to Corel |
 
-Bảng liên kết hiệu ứng `lnkt` (trong `doc`): `u32 length, u32 n, u32 0x0C, u32 offsets[n+1]`, mục 32 byte:
-`u32 loại (0xE0 bóng, 0x80 contour), u32 spnd nguồn (nhóm lnkg), u32 spnd đích (đối tượng), …`.
+Table link result effect application `lnkt` (in `doc`): `u32 length, u32 n, u32 0x0C, u32 offsets[n+1]`, entry 32 byte:
+`u32 type (0xE0 shadow, 0x80 contour), u32 spnd source (group lnkg), u32 spnd target (object), …`.
 
-## 3. Khác biệt vô hại (không chuyển)
-- `spid` (GUID) của nhóm trong PowerClip/symbol: Corel sinh mới mỗi lần lưu.
-- Đối số 0x0A đổi 1↔2 (đánh số lại).
-- `txtj`: số liệu dàn trang chữ, 2019 tự tính lại.
-- `metadata.xml`: Corel 2019 sắp xếp lại phần tử / namespace.
-- `embed/*` (font nhúng), `previews/*.png`.
+## 3. Harmless differences (not converted)
+- `spid` (GUID) of group in PowerClip/symbol: Corel generates new values on each save.
+- Object number 0x0A change 1↔2 (renumbering).
+- `txtj`: page-text layout data; 2019 recalculates it.
+- `metadata.xml`: Corel 2019 rewrites elements and namespaces.
+- `embed/*` (font embed), `previews/*.png`.
 
-## 4. Giới hạn đã biết (đều có cảnh báo trong log)
-| Trường hợp | C_Converter | Corel 2024 khi Save As 2019 |
+## 4. Known limitations (all produce a warning in the log)
+| Feature | C_Converter | Corel 2024 when Save As 2019 |
 |---|---|---|
-| Bóng trong (2023+) | gỡ hiệu ứng, giữ đối tượng | raster hóa bóng thành bitmap |
-| Font biến thể (vd Bahnschrift) | giữ chữ, cảnh báo; 2019 vẽ bằng kiểu mặc định → khác dáng | chuyển chữ thành curves |
-| Bullet font khác Arial-mặc-định | giữ khoảng thụt 2024, cảnh báo; chữ có thể lệch ~1,5 mm so với bullet | tính lại theo độ rộng glyph (công thức chưa xác định: AIGDT không khớp phép đo hmtx) |
+| Inner shadow (2023+) | removes the effect, keeps the object | rasterizes the shadow as a bitmap |
+| Variable fonts (for example, Bahnschrift) | keep text, warning; 2019 renders with the default font style → different shape | convert text become curves |
+| Bullet font differs from the Arial default | preserve the 2024 indentation and warn; text may be offset by ~1.5 mm relative to the bullet | recalculate from glyph widths (format-specific work is not yet exact: AIGDT does not match the available hmtx measurements) |
 
-## 5. Kết quả hồi quy (2026-10-22)
-- 41/41 file C_Converter tạo ra mở được bằng CorelDRAW 2019 (T00 trang trống không xuất được PNG ở cả hai phía).
-- 39/42 giống hệt về cấu trúc + ảnh với file Corel tự hạ; 3 còn lại là mục 4.
-- 30/42 trùng từng byte với file Corel tự hạ (bỏ qua GUID/bộ đếm lưu).
-- 5/5 file thật: mở được và giống hệt về cấu trúc + ảnh.
+## 5. Results (2026-10-22) (2026-10-22)
+- All 41 C_Converter-created files open successfully in CorelDRAW 2019 (T00 is blank and does not export a PNG on either side).
+- 39/42 identical in structure and rendering to the Corel-downgraded file; 3 still differ as described in item 4.
+- 30/42 byte-for-byte identical with Corel-downgraded file (skipped GUID/save counter).
+- 5/5 real files: open successfully and are identical in structure and rendering.
 
-## 6. Chế độ thử nghiệm cho nguồn 2025/2026 (chưa có mẫu thật)
-- Nhận diện: `vrsn` > 2500, cấu trúc giống 2019–2024 (container.xml → `content/root.dat`, `fver` inline với u16 = vrsn,
-  `mcfg` dạng 2100). Tên hiển thị "2025?"/"2026?" là ngoại suy (26 → 2025, 27 → 2026) [GĐ].
-- Áp dụng mọi quy tắc mục 2, cộng lọc JSON theo lược đồ 2019 (`src/CConvert.Core/Schema2019.g.cs`, sinh bằng
-  `tools/analysis/json2019.py` từ 54 file vrsn 2100). Object "động" (`style`, `levels`, `color styles`, …) không lọc khóa con.
-- Dừng, không ghi file khi gặp: kiểu đối số `loda` ngoài 27 kiểu đã biết; hiệu ứng 0xBB8 ngoài
-  {(23,2200,127), (23,1300,119), (15,1300,185)}; `txsm` khác dạng 13/14; chunk/LIST/loại đối tượng chưa biết.
-- Không dùng trường @0x18 của `trfd` làm dấu phiên bản: giá trị thay đổi theo đối tượng (0x6CC, 0xBC, 0x1A7, 0x514).
-- Kiểm chứng gián tiếp (2026-10-22): logic thử nghiệm = logic đã kiểm chứng trên 42 mẫu 2024; 5 file mô phỏng
-  2600/2700 mở được bằng CorelDRAW 2019 thật, ảnh trùng 100% với bản Corel tự hạ.
+## 6. Experimental mode for source 2025/2026 (has no real samples)
+- Recognition: `vrsn` > 2500, structure is the same 2019–2024 (container.xml → `content/root.dat`, `fver` inline with u16 = vrsn,
+  `mcfg` form 2100). The displayed name "2025?"/"2026?" is external inference (26 → 2025, 27 → 2026) [Phase].
+- Apply all rules in section 2, plus filter JSON using the schema 2019 (`src/CConvert.Core/Schema2019.g.cs`, generated by
+  `tools/analysis/json2019.py` from 54 files vrsn 2100). Object "dynamic" (`style`, `levels`, `color styles`, …) do not filter child keys.
+- Stop without writing when encountering: an `loda` argument type outside the 27 known types; an effect type outside 0xBB8
+  {(23,2200,127), (23,1300,119), (15,1300,185)}; `txsm` a form other than 13 or 14; chunk/LIST/type object unknown.
+- Do not use the field @0x18 of `trfd` as a version marker: the value varies by object (0x6CC, 0xBC, 0x1A7, 0x514).
+- Indirect verification (2026-10-22): experimental logic matches the verified logic on 42 sample 2024; 5 simulated files
+  2600/2700 open successfully in real CorelDRAW 2019, with images identical at 100% to the Corel-downgraded versions.

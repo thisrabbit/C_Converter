@@ -1,7 +1,7 @@
-"""So sánh bản ghi loda ở mức đối số giữa file 2024 (_25) và file Corel tự hạ xuống 2019 (_21).
+"""Compare loda records by object number between the 2024 file (_25) and the file CorelDRAW downgraded to 2019 (_21).
 
 loda: u32 len, u32 n, u32 offOffsets, u32 offTypes, u32 objType,
-      u32 offsets[n+1] (offset cuối = len), u32 types[n] (tăng dần, NGƯỢC thứ tự với offsets: offsets[i] ↔ types[n-1-i]).
+      u32 offsets[n+1] (offset last = len), u32 types[n] (in ascending order, REVERSE item automatically with offsets: offsets[i] ↔ types[n-1-i]).
 
   python lodadiff.py samples/gen
 """
@@ -59,6 +59,6 @@ if __name__ == "__main__":
                 summary[(ta, t)] += 1
             for t in added:
                 summary[(ta, "+" + t, ab[int(t, 16)].hex())] += 1
-    print("\nTổng hợp:")
+    print("\nTotal valid:")
     for k, v in summary.most_common():
         print(f"  {v:4} x {k}")

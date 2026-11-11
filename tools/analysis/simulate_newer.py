@@ -1,9 +1,9 @@
-"""Tạo file "CorelDRAW bản mới hơn" mô phỏng từ một file 2024 (chỉ để thử chế độ thử nghiệm).
+"""Create file "CorelDRAW newer version" simulated from one file 2024 (for testing experimental mode only).
 
-  python simulate_newer.py <vào_2024.cdr> <ra.cdr> [--vrsn 2600] [--extra-key]
+  python simulate_newer.py <input_2024.cdr> <out.cdr> [--vrsn 2600] [--extra-key]
 
-Đổi form type, fver, vrsn, CoreVersion; --extra-key chèn một khóa JSON lạ vào document.cdss.
-Không phải file 2025 thật — chỉ kiểm tra đường đi của chế độ thử nghiệm.
+Change form type, fver, vrsn, and CoreVersion; --extra-key inserts an unusual JSON key into document.cdss.
+This is not a real 2025 file; it only checks the experimental-mode code path.
 """
 import argparse
 import struct
@@ -51,4 +51,4 @@ if __name__ == "__main__":
             elif info.filename == "styles/document.cdss" and a.extra_key:
                 data = data.replace(b'"version": 2500,', f'"version": {a.vrsn},\n  "newFeature{a.vrsn}": "1",'.encode(), 1)
             zout.writestr(info, data, compress_type=zipfile.ZIP_STORED if info.filename == "mimetype" else zipfile.ZIP_DEFLATED)
-    print("đã tạo", a.dst)
+    print("created", a.dst)

@@ -3,12 +3,12 @@ using System.Buffers.Binary;
 namespace CConvert.Core;
 
 /// <summary>
-/// Bản ghi dữ liệu đối tượng 'loda' (đã kiểm chứng bằng đọc-ghi lại trùng từng byte trên toàn bộ mẫu):
+/// Data model for the 'loda' object (verified by byte-for-byte read/write round-trips across all samples):
 /// <code>
 ///   u32 length, u32 n, u32 offOffsets (=0x14), u32 offTypes, u32 objType,
-///   u32 offsets[n+1]   (offset cuối = length),
-///   u32 types[n]       (tăng dần; offsets[i] thuộc về types[n-1-i] — dữ liệu xếp theo kiểu giảm dần),
-///   dữ liệu các đối số.
+///   u32 offsets[n+1]   (offset last = length),
+///   u32 types[n]       (in ascending order; offsets[i] corresponds to types[n-1-i] — data ordered by descending type),
+///   data the object number.
 /// </code>
 /// </summary>
 public sealed class LodaRecord
@@ -17,7 +17,7 @@ public sealed class LodaRecord
 
     public uint ObjType { get; set; }
 
-    /// <summary>Đối số theo kiểu, luôn giữ tăng dần theo kiểu.</summary>
+    /// <summary>Object number according to type, always keep in ascending order according to type.</summary>
     public SortedDictionary<uint, byte[]> Args { get; } = new();
 
     public static bool TryParse(byte[] d, out LodaRecord? rec)
@@ -60,7 +60,7 @@ public sealed class LodaRecord
 
         var types = Args.Keys.ToArray();
         int pos = header;
-        // Dữ liệu xếp theo kiểu giảm dần: offsets[i] ↔ types[n-1-i].
+        // Data data arrange according to type decrease gradually: offsets[i] ↔ types[n-1-i].
         for (int i = 0; i < n; i++)
         {
             byte[] data = Args[types[n - 1 - i]];
@@ -74,7 +74,7 @@ public sealed class LodaRecord
         return buf;
     }
 
-    /// <summary>Đối số style: u32 1, u32 độ dài, JSON UTF-8.</summary>
+    /// <summary>Object number style: u32 1, uint32 length, JSON UTF-8.</summary>
     public static byte[] MakeStyle(string json)
     {
         byte[] text = System.Text.Encoding.UTF8.GetBytes(json);

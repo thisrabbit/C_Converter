@@ -1,74 +1,66 @@
-# C_Converter — Hạ phiên bản file CorelDRAW
+# C_Converter — Downgrade CorelDRAW files
 
 *Downgrade CorelDraw Version*
 
-Chuyển file `.cdr` từ **CorelDRAW 2020, 2021, 2022, 2023, 2024** xuống **CorelDRAW 2019**, không cần cài CorelDRAW
-(không dùng COM, không gọi chương trình của Corel). **2025, 2026: chế độ thử nghiệm** (xem bên dưới).
+Convert `.cdr` files from **CorelDRAW 2020, 2021, 2022, 2023, and 2024** to **CorelDRAW 2019**, without installing CorelDRAW (no COM and no calls to Corel software). **2025 and 2026 are experimental** (see below).
 
-Đây là hạ phiên bản thật (ghi lại các bản ghi theo định dạng 2019), không phải sửa số phiên bản trong header,
-và cũng không phải chuyển sang định dạng khác.
+This is a real version downgrade: records are rewritten in the 2019 format. It is not a header-only version-number change or a conversion to another format.
 
-## Dùng
-**Giao diện:** chạy `dist/C_Converter.exe` (một file duy nhất, không cần cài .NET).
-1. Kéo thả file `.cdr` hoặc cả thư mục vào cửa sổ (hoặc bấm *Thêm file… / Thêm thư mục…*).
-2. Chọn nơi lưu: cạnh file gốc (đuôi `_2019`) hoặc một thư mục riêng.
-3. Bấm **Bắt đầu**. Mỗi file có trạng thái và nhật ký riêng; *Lưu log…* để xuất toàn bộ.
+## Usage
 
-**Dòng lệnh:**
+**Interface:** run `dist/C_Converter.exe` (a single self-contained file; .NET installation is not required).
+1. Drag `.cdr` files or folders into the window, or click *Add files… / Add folder…*.
+2. Choose an output location: beside the source file (with the `_2019` suffix) or in a separate folder.
+3. Click **Start**. Each file has its own status and log; use *Save log…* to export all logs.
+
+**Command line:**
 ```
-dotnet src/CConvert.Cli/bin/Release/net8.0/CConvert.Cli.dll <file.cdr> [...] [--out <thư mục>]
+dotnet src/CConvert.Cli/bin/Release/net8.0/CConvert.Cli.dll <file.cdr> [...] [--out <folder>]
 ```
 
-Cam kết an toàn:
-- **Không bao giờ ghi đè** file gốc hay file đã tồn tại (tự thêm ` (1)`, ` (2)`…); ghi qua file tạm rồi mới đổi tên.
-- Một file lỗi không làm dừng cả lô.
-- File đã là 2019 trở xuống, hoặc không phải CorelDRAW, được bỏ qua kèm lý do.
+Safety guarantees:
+- **Never overwrite** a source or existing file. A numeric suffix such as ` (1)` or ` (2)` is added when needed; output is written to a temporary file before it is renamed.
+- A failed file does not stop the batch.
+- Files already at 2019 or earlier, and non-CorelDRAW files, are skipped with an explanation.
 
-## Mức độ tin cậy
-Đã kiểm thử bằng CorelDRAW 2019 thật (mở file, so cấu trúc và so ảnh từng điểm với file do Corel tự "Save As 2019"):
-45 mẫu bao phủ hình cơ bản, màu RGB/CMYK, nét/mũi tên, nhóm, layer, nhiều trang, text tiếng Việt, paragraph,
-bullet, bitmap, gradient, PowerClip, lens, transparency, đổ bóng, contour, envelope, extrude, symbol, texture…
-cùng 5 file thực tế. Chi tiết: [docs/PhatHien-02-loda.md](docs/PhatHien-02-loda.md).
+## Confidence level
 
-Gặp đối tượng/chunk chưa có trong mẫu đối chiếu, C_Converter vẫn chép nguyên nhưng **ghi cảnh báo cụ thể** vào nhật ký.
+Tested with real CorelDRAW 2019 by opening files, comparing structure, and comparing rendered images pixel by pixel with files Corel saved using “Save As 2019”. The 45 samples cover basic shapes, RGB/CMYK colors, strokes/arrows, groups, layers, multiple pages, Vietnamese text, paragraphs, bullets, bitmaps, gradients, PowerClip, lenses, transparency, shadows, contours, envelopes, extrusions, symbols, and textures, plus five real-world files. Details: [docs/PhatHien-02-loda.md](docs/PhatHien-02-loda.md).
 
-Giới hạn đã biết (đều có cảnh báo):
-- **Bóng trong** (inner shadow, 2023+): 2019 không có → C_Converter gỡ hiệu ứng, giữ đối tượng.
-  Muốn giữ bóng: *Convert to Bitmap* trong 2024 trước khi hạ.
-- **Font biến thể** (vd Bahnschrift): 2019 vẽ bằng kiểu mặc định của font → nên *Convert to Curves* trước.
-- **Bullet** dùng font khác bullet mặc định: khoảng cách chữ–bullet có thể lệch vài mm.
-- Chưa hạ xuống bản thấp hơn 2019 (X7, X8, 2017, 2018), chưa đọc nguồn X6 trở về trước.
+When an object or chunk is not present in the comparison samples, C_Converter copies it unchanged but logs a specific warning.
 
-## Chế độ thử nghiệm: nguồn 2025 / 2026
-Chưa có mẫu 2025/2026 để kiểm chứng, nên file mới hơn 2024 được xử lý bằng suy luận:
-- Nhận theo **cấu trúc** (ZIP + `root.dat` + `fver`/`vrsn` + `mcfg` dạng 2100 như 2019–2024), không theo bảng tên.
-  Cấu trúc khác → từ chối.
-- Dùng chung các quy tắc 2020–2024, cộng **lọc JSON theo lược đồ 2019** (`Schema2019.g.cs`, rút từ 54 file 2019 thật
-  bằng `tools/analysis/json2019.py`): khóa không có trong 2019 bị bỏ và liệt kê trong nhật ký.
-- Gặp thuộc tính đối tượng, dạng text, dạng hiệu ứng hoặc chunk **chưa từng thấy** → **báo lỗi, không ghi file**
-  (thay vì tạo file có thể làm CorelDRAW 2019 crash).
-- Kết quả gắn nhãn **"Xong (thử nghiệm)"** — nên mở kiểm tra bằng CorelDRAW 2019 trước khi giao.
+Known limitations (all produce warnings):
+- **Inner shadow** (2023+): CorelDRAW 2019 does not support it, so C_Converter removes the effect while keeping the object. To preserve the appearance, use *Convert to Bitmap* in 2024 before downgrading.
+- **Variable fonts** (for example, Bahnschrift): CorelDRAW 2019 renders them using the font’s default style, so *Convert to Curves* first.
+- **Bullets using a non-default bullet font:** text-to-bullet spacing may differ by a few millimeters.
+- Versions below 2019 (X7, X8, 2017, and 2018) are not supported, and X6 or earlier sources are not read.
 
-Đã kiểm tra: logic thử nghiệm chạy trên 42 mẫu 2024 cho kết quả giống hệt logic đã kiểm chứng (lược đồ 2019 không
-bỏ nhầm khóa nào); file "2025/2026" mô phỏng (`tools/analysis/simulate_newer.py`) mở được bằng CorelDRAW 2019 và
-hiển thị giống hệt bản Corel tự hạ. Khi có CorelDRAW 2025 (bản dùng thử cũng được), chạy bộ kiểm thử
-`tools/harness` với `CorelDRAW.Application.26` để chuyển sang hỗ trợ chính thức.
+## Experimental mode: 2025 / 2026 sources
 
-## Cấu trúc mã
-| Thư mục | Nội dung |
+There are no 2025/2026 samples for verification, so files newer than 2024 are handled by inference:
+- Recognition is based on **structure** (ZIP + `root.dat` + `fver`/`vrsn` + `mcfg` in the 2100 format used by 2019–2024), not on a version-name table. Different structure is rejected.
+- The 2020–2024 rules are reused, with **JSON filtering against the 2019 schema** (`Schema2019.g.cs`, derived from 54 real 2019 files by `tools/analysis/json2019.py`). Keys absent from 2019 are removed and listed in the log.
+- An object attribute, text form, effect form, or chunk never seen before causes an **error and no output file** instead of risking a file that could crash CorelDRAW 2019.
+- Results are labeled **“Done (experimental)”** and should be opened and checked in CorelDRAW 2019 before delivery.
+
+Verified: experimental logic produces the same results as the verified logic on 42 2024 samples; the 2019 schema does not remove any valid keys. Simulated “2025/2026” files (`tools/analysis/simulate_newer.py`) open in CorelDRAW 2019 and render identically to Corel-downgraded files. When CorelDRAW 2025 is available (a trial version is sufficient), run the test harness with `CorelDRAW.Application.26` to enable official support.
+
+## Code structure
+
+| Directory | Contents |
 |---|---|
-| `src/CConvert.Core` | Lõi: đọc/ghi ZIP, `root.dat` (RIFF con trỏ), `loda`, `txsm`, `lnkt`, quy tắc chuyển (`Downgrader`) |
-| `src/CConvert.App` | Giao diện WPF tiếng Việt |
-| `src/CConvert.Cli` | Dòng lệnh |
-| `tests/CConvert.Tests` | Test (cần `samples/gen`, tạo bằng bộ kiểm thử bên dưới) |
-| `tools/CdrDump` | Công cụ dump cây chunk của mọi file `.cdr` |
-| `tools/analysis` | Script Python so sánh nhị phân / so ảnh |
-| `tools/harness` | **Chỉ cho phát triển**: điều khiển CorelDRAW 2024/2019 qua COM để tạo mẫu và kiểm chứng |
-| `docs/` | Khảo sát định dạng và các quy tắc đã khám phá |
+| `src/CConvert.Core` | Core library: ZIP, `root.dat` (RIFF pointers), `loda`, `txsm`, `lnkt`, and conversion rules (`Downgrader`) |
+| `src/CConvert.App` | WPF interface |
+| `src/CConvert.Cli` | Command-line interface |
+| `tests/CConvert.Tests` | Tests (requires `samples/gen`, created by the test harness below) |
+| `tools/CdrDump` | Chunk-tree dump tool for `.cdr` files |
+| `tools/analysis` | Python scripts for binary and image comparison |
+| `tools/harness` | **Development only:** controls CorelDRAW 2024/2019 through COM to create samples and verify results |
+| `docs/` | Format survey and discovered rules |
 
-## Phát triển
+## Development
 ```
-dotnet test tests/CConvert.Tests                                   # 167 test
-powershell -File tools/harness/run-regression.ps1 -Regenerate   # cần CorelDRAW 2024 + 2019
+dotnet test tests/CConvert.Tests                                   # 167 tests
+powershell -File tools/harness/run-regression.ps1 -Regenerate       # requires CorelDRAW 2024 + 2019
 dotnet publish src/CConvert.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o dist
 ```

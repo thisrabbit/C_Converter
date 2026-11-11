@@ -1,6 +1,6 @@
-﻿# Bộ kiểm thử (chỉ dùng khi phát triển): mở từng file .cdr bằng CorelDRAW 2019 THẬT,
-# ghi lại cấu trúc tài liệu (trang/layer/đối tượng) ra JSON và xuất mỗi trang ra PNG.
-# So sánh kết quả của file C_Converter với file 2019 do Corel tự lưu bằng tools/analysis/compare_render.py.
+# Set check test (only use when development): open each file .cdr with CorelDRAW 2019 REAL,
+# Re-read the file structure (page/layer/object) as JSON and export each page as PNG.
+# Compare result of file C_Converter with file 2019 do Corel saved automatically with tools/analysis/compare_render.py.
 param(
     [Parameter(Mandatory)][string[]]$Files,
     [Parameter(Mandatory)][string]$OutDir,
@@ -10,10 +10,10 @@ param(
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
-# -ProgId CorelDRAW.Application.25 để dựng ảnh tham chiếu của file gốc bằng 2024.
+# -ProgId CorelDRAW.Application.25 to build image reference of file source with 2024.
 $exeFilter = if ($ProgId -like '*.21') { '*Suite 2019*' } else { '*Suite\25\*' }
 function Restart-Corel {
-    # Sau khi CorelDRAW gặp file hỏng nó thường kẹt ở hộp thoại ẩn → khởi động lại tiến trình.
+    # Sau when CorelDRAW encounter file broken it often stuck at box dialog hidden → start dynamic again progress process.
     Get-Process CorelDRW -ErrorAction SilentlyContinue | Where-Object { $_.Path -like $exeFilter } | Stop-Process -Force
     Start-Sleep -Seconds 2
     New-Object -ComObject $ProgId
@@ -60,7 +60,7 @@ foreach ($f in $Files) {
             }
             $png = Join-Path $OutDir "$base.p$i.png"
             Remove-Item $png -ErrorAction SilentlyContinue
-            # Export(file, cdrPNG=802, cdrCurrentPage=1, options, palette); ImageType 4 = RGB, AntiAliasing 1 = thường
+            # Export(file, cdrPNG=802, cdrCurrentPage=1, options, palette); ImageType 4 = RGB, AntiAliasing 1 = often
             $eo = $app.CreateStructExportOptions(); $eo.ResolutionX = $Dpi; $eo.ResolutionY = $Dpi; $eo.ImageType = 4; $eo.AntiAliasingType = 1
             $doc.Export($png, 802, 1, $eo, $app.CreateStructPaletteOptions())
             $pages += [ordered]@{ index = $i; w = (Rnd $p.SizeWidth); h = (Rnd $p.SizeHeight); layers = $layers }
@@ -74,7 +74,7 @@ foreach ($f in $Files) {
     }
     $entry.seconds = [math]::Round($sw.Elapsed.TotalSeconds, 1)
     $report += $entry
-    Write-Host ("{0,-40} {1}" -f $base, $(if ($entry.opened -and -not $entry.error) { 'mở OK' } else { "LỖI: $($entry.error)" }))
+    Write-Host ("{0,-40} {1}" -f $base, $(if ($entry.opened -and -not $entry.error) { 'open OK' } else { "ERROR: $($entry.error)" }))
 }
 $json = ConvertTo-Json $report -Depth 30
 [IO.File]::WriteAllText((Join-Path $OutDir 'report.json'), $json, (New-Object Text.UTF8Encoding $false))

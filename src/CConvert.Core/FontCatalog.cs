@@ -3,12 +3,12 @@ using Microsoft.Win32;
 
 namespace CConvert.Core;
 
-/// <summary>Tra cứu font đã cài trên Windows (chỉ để cảnh báo, không bắt buộc).</summary>
+/// <summary>Tra save font already install on Windows (only to warning, not start force).</summary>
 public static class FontCatalog
 {
     private static readonly Lazy<Dictionary<string, string>> Files = new(LoadRegistry);
 
-    /// <summary>Font là font biến thể (OpenType có bảng 'fvar')? null nếu không tìm thấy font.</summary>
+    /// <summary>Whether a font is variable (OpenType has table 'fvar')? null if font was not found.</summary>
     public static bool? IsVariable(string family)
     {
         if (!OperatingSystem.IsWindows()) return null;
@@ -20,7 +20,7 @@ public static class FontCatalog
             if (fs.Read(head) != 12) return null;
             ushort numTables = BinaryPrimitives.ReadUInt16BigEndian(head[4..]);
             if (head[0] == 't' && head[1] == 't' && head[2] == 'c' && head[3] == 'f')
-                return null; // bộ sưu tập TTC: bỏ qua cho đơn giản
+                return null; // set collect set TTC: skipped for simple
             var dir = new byte[16 * numTables];
             if (fs.Read(dir) != dir.Length) return null;
             for (int i = 0; i < numTables; i++)

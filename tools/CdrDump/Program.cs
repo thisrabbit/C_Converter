@@ -2,13 +2,13 @@ using System.IO.Compression;
 using System.Text;
 using CdrDump;
 
-// cdrdump — công cụ khảo sát cấu trúc file .cdr (Giai đoạn 0). Chỉ đọc, không bao giờ ghi vào file nguồn.
+// cdrdump — utility for inspecting .cdr structure (Phase 0). Read-only; never writes to source files.
 //
-//   cdrdump <file.cdr> [file2.cdr ...] [--hex N] [--stats] [--out <thư mục>]
+//   cdrdump <file.cdr> [file2.cdr ...] [--hex N] [--stats] [--out <output folder>]
 //
-//   --hex N    số byte xem trước của mỗi chunk lá (mặc định 16, 0 để tắt)
-//   --stats    in thêm thống kê theo đường dẫn chunk (dễ diff giữa hai phiên bản)
-//   --out DIR  ghi kết quả ra DIR/<tên file>.tree.txt thay vì in ra màn hình
+//   --hex N    number of bytes to preview for each leaf chunk (default 16, 0 to disable)
+//   --stats    add statistics grouped by the leading chunk path (for easy comparison between versions)
+//   --out DIR  write results to DIR/<filename>.tree.txt instead of the console
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -29,7 +29,7 @@ for (int i = 0; i < args.Length; i++)
 
 if (files.Count == 0)
 {
-    Console.Error.WriteLine("Cách dùng: cdrdump <file.cdr> [...] [--hex N] [--stats] [--out <thư mục>]");
+    Console.Error.WriteLine("Usage: cdrdump <file.cdr> [...] [--hex N] [--stats] [--out <output folder>]");
     return 2;
 }
 
@@ -43,7 +43,7 @@ foreach (string file in files)
     }
     catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
     {
-        sb.AppendLine($"LỖI: {ex.Message}");
+        sb.AppendLine($"ERROR: {ex.Message}");
         failures++;
     }
 
@@ -68,18 +68,18 @@ static void Dump(string file, StringBuilder sb, int hex, bool stats)
 
     if (buf.Length >= 4 && buf[0] == 'P' && buf[1] == 'K' && buf[2] == 3 && buf[3] == 4)
     {
-        sb.AppendLine("Container: ZIP (nhóm phiên bản mới, khoảng X4 trở lên — GIẢ ĐỊNH, cần kiểm chứng)");
+        sb.AppendLine("Container: ZIP (newer-version format, approximately X4 and later — ASSUMED, requires verification)");
         DumpZip(buf, sb, hex, stats);
     }
     else if (buf.Length >= 4 && RiffParser.Ascii(buf, 0, 4) == "RIFF")
     {
-        sb.AppendLine("Container: RIFF trần (nhóm phiên bản cũ)");
+        sb.AppendLine("Container: RIFF bare (older-version group)");
         DumpRiff(buf, "file", sb, new RiffParser(hex), stats);
     }
     else
     {
-        sb.AppendLine($"Container: KHÔNG NHẬN DẠNG ĐƯỢC. 16 byte đầu: {Hex(buf.AsSpan(0, Math.Min(16, buf.Length)))}  |{RiffParser.Escape(buf, 0, 16)}|");
-        sb.AppendLine("(File CorelDRAW rất cũ hoặc không phải .cdr — gửi mẫu này để phân tích riêng.)");
+        sb.AppendLine($"Container: UNRECOGNIZED. 16 byte first: {Hex(buf.AsSpan(0, Math.Min(16, buf.Length)))}  |{RiffParser.Escape(buf, 0, 16)}|");
+        sb.AppendLine("(Very old CorelDRAW file or not .cdr — send this sample for separate analysis.)");
     }
     sb.AppendLine();
 }
@@ -87,11 +87,11 @@ static void Dump(string file, StringBuilder sb, int hex, bool stats)
 static void DumpZip(byte[] buf, StringBuilder sb, int hex, bool stats)
 {
     using var zip = new ZipArchive(new MemoryStream(buf, writable: false), ZipArchiveMode.Read);
-    sb.AppendLine($"{zip.Entries.Count} mục trong ZIP:");
+    sb.AppendLine($"{zip.Entries.Count} entries in ZIP:");
     var entries = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
     foreach (var e in zip.Entries)
     {
-        sb.AppendLine($"  {e.FullName,-48} {e.Length,12:N0} byte (nén {e.CompressedLength:N0})");
+        sb.AppendLine($"  {e.FullName,-48} {e.Length,12:N0} byte (compressed {e.CompressedLength:N0})");
         using var s = e.Open();
         using var ms = new MemoryStream();
         s.CopyTo(ms);
@@ -99,7 +99,7 @@ static void DumpZip(byte[] buf, StringBuilder sb, int hex, bool stats)
     }
     sb.AppendLine();
 
-    // content/dataFileList.dat: danh sách tên file (phân tách bằng xuống dòng) nằm trong content/data/.
+    // content/dataFileList.dat: newline-separated file names located under content/data/.
     List<(string, byte[])>? dataFiles = null;
     if (entries.TryGetValue("content/dataFileList.dat", out byte[]? list))
     {
@@ -110,7 +110,7 @@ static void DumpZip(byte[] buf, StringBuilder sb, int hex, bool stats)
                 dataFiles.Add((name, d));
             else
             {
-                sb.AppendLine($"CẢNH BÁO: dataFileList nhắc tới '{name}' nhưng không có content/data/{name}");
+                sb.AppendLine($"WARNING: dataFileList references '{name}' but is missing content/data/{name}");
                 dataFiles.Add((name, Array.Empty<byte>()));
             }
         }
@@ -132,7 +132,7 @@ static void DumpZip(byte[] buf, StringBuilder sb, int hex, bool stats)
         else if (e.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
         {
             string text = Encoding.UTF8.GetString(data);
-            sb.AppendLine($"--- {e.FullName}: XML, 300 ký tự đầu:");
+            sb.AppendLine($"--- {e.FullName}: XML, 300 character automatically first:");
             sb.AppendLine("    " + text[..Math.Min(300, text.Length)].ReplaceLineEndings(" "));
         }
         else
@@ -151,7 +151,7 @@ static void DumpRiff(byte[] buf, string source, StringBuilder sb, RiffParser par
         var agg = new SortedDictionary<string, (int Count, long Bytes)>(StringComparer.Ordinal);
         Aggregate(root, "", agg);
         sb.AppendLine();
-        sb.AppendLine("Thống kê theo đường dẫn (số lần | tổng byte | đường dẫn):");
+        sb.AppendLine("Statistics by path (count | total bytes | path lead):");
         foreach (var (path, (count, bytes)) in agg)
             sb.AppendLine($"  {count,6} | {bytes,12:N0} | {path}");
     }
@@ -163,7 +163,7 @@ static void PrintTree(Chunk c, StringBuilder sb, int depth)
     string where = c.Source == "file" || c.Source.StartsWith("zip:", StringComparison.Ordinal) ? "" : $" [{c.Source}]";
     sb.Append($"{indent}[0x{c.Offset:X8}]{where} {c.Label} size={c.Size}");
     if (c.ListType is null && c.Content.Length != c.Size)
-        sb.Append($" (nội dung {c.Content.Length})");
+        sb.Append($" (content {c.Content.Length})");
     if (c.Preview.Length > 0)
         sb.Append($"  {Hex(c.Preview)} |{RiffParser.Escape(c.Preview, 0, c.Preview.Length)}|");
     sb.AppendLine();
