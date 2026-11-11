@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -24,7 +24,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         FileGrid.ItemsSource = _items;
         TargetBox.ItemsSource = new[] { CorelVersion.V2019 }.Select(v => $"CorelDRAW {v.Name}");
-        // File/thư mục truyền qua dòng lệnh (vd từ "Send To" của Windows) được thêm sẵn.
+        // Files and folders passed on the command line (for example, from Windows “Send To”) are added automatically.
         AddPaths(Environment.GetCommandLineArgs().Skip(1));
         UpdateStatus();
         SourceInitialized += (_, _) => UseDarkTitleBar();
@@ -33,7 +33,7 @@ public partial class MainWindow : Window
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-    /// <summary>Thanh tiêu đề Windows màu tối cho hợp tông (Windows 10 2004+ / 11; bản cũ hơn bỏ qua).</summary>
+    /// <summary>Dark Windows title bar for a matching theme (Windows 10 2004+ / 11; ignored on older versions).</summary>
     private void UseDarkTitleBar()
     {
         var hwnd = new WindowInteropHelper(this).Handle;
@@ -42,7 +42,7 @@ public partial class MainWindow : Window
             DwmSetWindowAttribute(hwnd, 19, ref on, sizeof(int));
     }
 
-    // ---------- Thêm file ----------
+    // ---------- Add files ----------
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
@@ -62,13 +62,13 @@ public partial class MainWindow : Window
 
     private void OnAddFiles(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFileDialog { Filter = "CorelDRAW (*.cdr)|*.cdr", Multiselect = true, Title = "Chọn file CorelDRAW" };
+        var dlg = new OpenFileDialog { Filter = "CorelDRAW (*.cdr)|*.cdr", Multiselect = true, Title = "Choose file CorelDRAW" };
         if (dlg.ShowDialog(this) == true) AddPaths(dlg.FileNames);
     }
 
     private void OnAddFolder(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFolderDialog { Title = "Chọn thư mục chứa file .cdr (gồm cả thư mục con)" };
+        var dlg = new OpenFolderDialog { Title = "Choose a folder containing .cdr files (including subfolders)" };
         if (dlg.ShowDialog(this) == true) AddPaths([dlg.FolderName]);
     }
 
@@ -84,9 +84,9 @@ public partial class MainWindow : Window
             {
                 if (!known.Add(f) || f.EndsWith(".c_converter.tmp", StringComparison.OrdinalIgnoreCase)) continue;
                 var (ver, desc) = CdrInfo.Probe(f);
-                var item = new FileItem(f) { SourceVersion = ver is { IsExperimental: true } ? $"CorelDRAW {ver.Name} · thử nghiệm" : desc };
-                if (ver is null) item.SetState(FileState.Skipped, "Bỏ qua");
-                else if (ver.Vrsn <= CorelVersion.V2019.Vrsn) item.SetState(FileState.Skipped, "Đã là 2019 trở xuống");
+                var item = new FileItem(f) { SourceVersion = ver is { IsExperimental: true } ? $"CorelDRAW {ver.Name} · experimental" : desc };
+                if (ver is null) item.SetState(FileState.Skipped, "Skipped");
+                else if (ver.Vrsn <= CorelVersion.V2019.Vrsn) item.SetState(FileState.Skipped, "Already 2019 or older");
                 _items.Add(item);
             }
         }
@@ -102,18 +102,18 @@ public partial class MainWindow : Window
 
     private void OnPickOutDir(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFolderDialog { Title = "Chọn thư mục lưu kết quả" };
+        var dlg = new OpenFolderDialog { Title = "Choose output folder" };
         if (dlg.ShowDialog(this) == true) OutDirBox.Text = dlg.FolderName;
     }
 
-    // ---------- Chạy ----------
+    // ---------- Run ----------
 
     private async void OnStart(object sender, RoutedEventArgs e)
     {
         var todo = _items.Where(i => i.State is FileState.Pending or FileState.Failed).ToList();
         if (todo.Count == 0)
         {
-            MessageBox.Show(this, "Không có file nào cần chuyển. Hãy thêm file .cdr bản 2020–2024 (2025/2026: thử nghiệm).", "C_Converter");
+            MessageBox.Show(this, "There are no files to convert. Add a file .cdr version 2020–2024 (2025/2026: experimental).", "C_Converter");
             return;
         }
         string? outDir = null;
@@ -122,7 +122,7 @@ public partial class MainWindow : Window
             outDir = OutDirBox.Text.Trim();
             if (outDir.Length == 0)
             {
-                MessageBox.Show(this, "Hãy chọn thư mục lưu kết quả.", "C_Converter");
+                MessageBox.Show(this, "Choose an output folder.", "C_Converter");
                 return;
             }
             Directory.CreateDirectory(outDir);
@@ -138,9 +138,9 @@ public partial class MainWindow : Window
             foreach (var item in todo)
             {
                 if (_cts.IsCancellationRequested) break;
-                item.SetState(FileState.Running, "Đang chuyển…");
+                item.SetState(FileState.Running, "Converting…");
                 string output = CdrInfo.OutputPathFor(item.Path, target, outDir);
-                // Mỗi file chạy độc lập: lỗi của một file không làm dừng cả lô.
+                // Each file runs independently; an error in one file does not stop the batch.
                 var result = await Task.Run(() => Downgrader.Run(item.Path, output, target));
                 item.Log = string.Join(Environment.NewLine, result.Log.Select(l => l.ToString()));
                 item.WarningCount = result.Log.Count(l => l.Level == Core.LogLevel.Warning);
@@ -148,14 +148,14 @@ public partial class MainWindow : Window
                 {
                     item.OutputPath = output;
                     if (result.Experimental)
-                        item.SetState(FileState.DoneExperimental, "Xong (thử nghiệm)");
+                        item.SetState(FileState.DoneExperimental, "Done (experimental)");
                     else
                         item.SetState(result.HasWarnings ? FileState.DoneWithWarnings : FileState.Done,
-                            result.HasWarnings ? "Xong (có cảnh báo)" : "Xong");
+                            result.HasWarnings ? "Done (with warnings)" : "Done");
                 }
                 else
                 {
-                    item.SetState(FileState.Failed, "Lỗi");
+                    item.SetState(FileState.Failed, "Errors");
                 }
                 Progress.Value++;
                 UpdateStatus();
@@ -165,7 +165,7 @@ public partial class MainWindow : Window
         finally
         {
             foreach (var item in _items.Where(i => i.State == FileState.Running))
-                item.SetState(FileState.Pending, "Chờ");
+                item.SetState(FileState.Pending, "Pending");
             _cts = null;
             SetRunning(false);
             UpdateStatus();
@@ -177,7 +177,7 @@ public partial class MainWindow : Window
     {
         _cts?.Cancel();
         StopButton.IsEnabled = false;
-        StatusText.Text = "Đang dừng sau file hiện tại…";
+        StatusText.Text = "Stopping after the current file…";
     }
 
     private void SetRunning(bool running)
@@ -201,11 +201,11 @@ public partial class MainWindow : Window
         StatFail.Text = fail.ToString();
         DropHint.Visibility = total == 0 ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Text = total == 0
-            ? "Chưa có file nào."
-            : skip > 0 ? $"{done}/{total - skip} file · {skip} bỏ qua" : $"{done}/{total} file";
+            ? "No files yet."
+            : skip > 0 ? $"{done}/{total - skip} files · {skip} skipped" : $"{done}/{total} files";
     }
 
-    // ---------- Nhật ký ----------
+    // ---------- Log ----------
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowLog();
 
@@ -213,12 +213,12 @@ public partial class MainWindow : Window
     {
         if (FileGrid.SelectedItem is FileItem one)
         {
-            LogTitle.Text = "NHẬT KÝ · " + one.FileName;
+            LogTitle.Text = "LOG · " + one.FileName;
             LogBox.Text = $"{one.Path}{Environment.NewLine}{one.Log}";
             LogBox.ScrollToHome();
             return;
         }
-        LogTitle.Text = "NHẬT KÝ";
+        LogTitle.Text = "LOG";
         LogBox.Text = BuildFullLog();
         LogBox.ScrollToEnd();
     }
@@ -229,7 +229,7 @@ public partial class MainWindow : Window
         foreach (var i in _items.Where(i => i.Log.Length > 0 || i.State == FileState.Skipped))
         {
             sb.AppendLine($"=== {i.Path}  [{i.StatusText}]");
-            if (i.State == FileState.Skipped) sb.AppendLine($"  Bỏ qua: {i.SourceVersion}");
+            if (i.State == FileState.Skipped) sb.AppendLine($"  Skipped: {i.SourceVersion}");
             foreach (string line in i.Log.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
                 sb.AppendLine("  " + line);
         }
@@ -238,7 +238,7 @@ public partial class MainWindow : Window
 
     private void OnSaveLog(object sender, RoutedEventArgs e)
     {
-        var dlg = new SaveFileDialog { Filter = "Văn bản (*.txt)|*.txt", FileName = $"C_Converter_log_{DateTime.Now:yyyyMMdd_HHmm}.txt" };
+        var dlg = new SaveFileDialog { Filter = "Text (*.txt)|*.txt", FileName = $"C_Converter_log_{DateTime.Now:yyyyMMdd_HHmm}.txt" };
         if (dlg.ShowDialog(this) == true)
             File.WriteAllText(dlg.FileName, BuildFullLog(), new UTF8Encoding(true));
     }
@@ -267,7 +267,7 @@ public sealed class FileItem(string path) : INotifyPropertyChanged
     private FileState _state = FileState.Pending;
     public FileState State => _state;
 
-    private string _statusText = "Chờ";
+    private string _statusText = "Pending";
     public string StatusText => _statusText;
 
     private static Brush Res(string key) => (Brush)Application.Current.Resources[key];
@@ -283,7 +283,7 @@ public sealed class FileItem(string path) : INotifyPropertyChanged
         _ => Res("Text"),
     };
 
-    /// <summary>Nền mờ cùng màu cho "chip" trạng thái.</summary>
+    /// <summary>Tinted background for "chip" status.</summary>
     public Brush StatusBackground
     {
         get

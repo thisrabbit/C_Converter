@@ -12,7 +12,7 @@ public class FormatTests
         foreach (var leaf in root.Leaves.Where(l => l.FourCC == "loda"))
         {
             byte[] raw = root.Read(leaf, data);
-            Assert.True(LodaRecord.TryParse(raw, out var rec), $"{file}: không đọc được {leaf.Path}");
+            Assert.True(LodaRecord.TryParse(raw, out var rec), $"{file}: could not be read {leaf.Path}");
             Assert.Equal(raw, rec!.ToBytes());
         }
     }
@@ -38,7 +38,7 @@ public class FormatTests
         rec.Args[0x4ABA] = [1, 2, 3, 4];
         rec.Args[LodaRecord.StyleArg] = LodaRecord.MakeStyle("{}");
         byte[] b = rec.ToBytes();
-        // header 0x14 + 3 offset + 2 kiểu = 0x28; dữ liệu theo kiểu giảm dần: 0x4ABA trước, rồi 0xC9.
+        // header 0x14 + 3 offset + 2 type = 0x28; data according to type decrease gradually: 0x4ABA before, then 0xC9.
         Assert.Equal(0x28u, BitConverter.ToUInt32(b, 0x14));
         Assert.Equal(0x2Cu, BitConverter.ToUInt32(b, 0x18));
         Assert.Equal(0xC9u, BitConverter.ToUInt32(b, 0x20));

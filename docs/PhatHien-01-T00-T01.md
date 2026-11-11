@@ -1,29 +1,29 @@
-# Phát hiện từ mẫu T00 (trang trống) và T01 (1 hình chữ nhật đỏ)
+# Findings from samples T00 (blank page) and T01 (one red rectangle)
 
-Mẫu: `File mau/T00_*.cdr`, `File mau/T01_*.cdr`, các phiên bản 17, 18, 19, 20, 21, 22, 23, 24, 24.3, 25.
-Công cụ: `tools/CdrDump` (cây chunk), `tools/analysis/cdrtree.py` (so sánh nội dung chunk).
+Samples: `samples/T00_*.cdr`, `samples/T01_*.cdr`, versions 17, 18, 19, 20, 21, 22, 23, 24, 24.3, and 25.
+Tools: `tools/CdrDump` (chunk tree) and `tools/analysis/cdrtree.py` (chunk-content comparison).
 
-Mọi điều dưới đây **đã kiểm chứng trên 20 file mẫu này**, trừ chỗ ghi [GĐ]. Mẫu chỉ có 1 đối tượng nên kết luận *chưa* áp dụng được cho text, bitmap, hiệu ứng.
+All statements below were verified on 20 sample files, except where marked [Phase]. The samples contain only one object, so the conclusions are *not yet applicable to text, bitmaps, or effects.
 
-## 1. Container (17 → 25 giống nhau)
-- ZIP, mục đầu là `mimetype` không nén = `application/x-vnd.corel.zcf.draw.document+zip` (kiểu ODF).
-- `META-INF/container.xml` trỏ tới `content/root.dat`.
-- `content/root.dat` là RIFF `CDR?`; ký tự thứ 4 đổi theo phiên bản (xem bảng mục 3).
-- `content/dataFileList.dat`: danh sách tên file cách nhau bằng `\n`: `data1.dat`, `masterPage.dat`, `page1.dat`.
-- Kèm: `previews/*.png`, `color/*.xml`, profile ICC (T01 nhúng `uswebcoatedswop.icc` 557 KB — vì vậy file nặng 400 KB), `styles/document.cdss` (JSON), `META-INF/metadata.xml`, `textinfo.xml`, `links.xml`.
+## 1. Container (17 → 25 are identical)
+- ZIP, first entry is `mimetype` not compressed = `application/x-vnd.corel.zcf.draw.document+zip` (type ODF).
+- `META-INF/container.xml` pointer to `content/root.dat`.
+- `content/root.dat` is RIFF `CDR?`; the fourth character of the form type changes by version (see the table in section 3).
+- `content/dataFileList.dat`: list of file names separated by `\n`: `data1.dat`, `masterPage.dat`, `page1.dat`.
+- Also included: `previews/*.png`, `color/*.xml`, an ICC profile (T01 embeds `uswebcoatedswop.icc`, 557 KB, which explains the file’s roughly 400 KB size), `styles/document.cdss` (JSON), `META-INF/metadata.xml`, `textinfo.xml`, and `links.xml`.
 
-## 2. Chunk lá trong root.dat là con trỏ 16 byte
+## 2. Chunk leaves in root.dat and their 16-byte pointers
 ```
-u32 fileIndex   // chỉ số trong dataFileList (0-based); 0xFFFFFFFF = dữ liệu inline
+u32 fileIndex   // only number in dataFileList (0-based); 0xFFFFFFFF = data inline
 u32 length
-u32 offset      // hoặc: tối đa 8 byte dữ liệu inline (byte 8..15)
-u32 reserved    // = 0 trên mọi mẫu
+u32 offset      // or: inline 8-byte data (bytes 8..15)
+u32 reserved    // = 0 on every sample
 ```
-Đã kiểm chứng: offset+length của các chunk liên tiếp khớp đúng kích thước từng file `.dat`.
-Cấu trúc: `doc ` → `data1.dat`; trang master (`page[0]`) → `masterPage.dat`; trang 1 → `page1.dat`.
+Verified: the offset and length of each linked chunk match the correct size in every `.dat` file.
+Structure: `doc ` → `data1.dat`; master page (`page[0]`) → `masterPage.dat`; page 1 → `page1.dat`.
 
-## 3. Phiên bản
-| Sản phẩm | Mẫu | `vrsn` | form type | `fver` (8 byte) | `DocFormatterId` |
+## 3. Version version
+| Product | Sample | `vrsn` | Form type | `fver` (8 bytes) | `DocFormatterId` |
 |---|---|---|---|---|---|
 | X7 | 17 | 1700 | `CDRH` | `A4 06 01 00 00 00 11 00` | 1700 |
 | X8 | 18 | 1800 | `CDRJ` | `08 07 01 00 00 00 12 00` | 1800 |
@@ -36,43 +36,43 @@ Cấu trúc: `doc ` → `data1.dat`; trang master (`page[0]`) → `masterPage.da
 | 2023 | 24.3 | 2430 | `CDRQ` | `7E 09 01 00 00 03 18 00` | 1800 |
 | 2024 | 25 | 2500 | `CDRR` | `C4 09 01 00 00 00 19 00` | 1800 |
 
-Tên sản phẩm do người dùng xác nhận (máy có 2024 và 2019; mẫu tạo bằng 2024 rồi Save As).
-`fver` = `u16 vrsn, u16 1, u8 0, u8 bản cập nhật, u8 phiên bản chính, u8 0` [tên trường GĐ].
-`metadata.xml`: `CoreVersion` = vrsn; `Revision` là bộ đếm số lần lưu (không phụ thuộc phiên bản).
+Name product product do user use exact accepts (machine has 2024 and 2019; sample create with 2024 then Save As).
+`fver` = `u16 vrsn, u16 1, u8 0, u8 update version, u8 major version, u8 0` [field name Phase].
+`metadata.xml`: `CoreVersion` = vrsn; `Revision` is the save counter (not a version field).
 
-## 4. Khác biệt giữa các phiên bản — rất ít
-Cây chunk **giống hệt nhau** 17→25. Nội dung chunk trùng từng byte, trừ:
+## 4. Differences between versions — very few
+Tree chunk **identical** 17→25. Chunk contents are byte-for-byte identical, except:
 
-| Thành phần | Khác biệt |
+| Component | Differences |
 |---|---|
-| `fver`, `vrsn` | số phiên bản |
-| `doc/mcfg` | 2 dạng: 17–20 (8323 byte, header `u16=1300`) và 21–25 (7944 byte, header `u16=2100`). Bản 21+ bỏ 8 byte tại 0x365 và 371 byte tại 0x37A (khối có chuỗi UTF‑16 `CorelDefaultID_10900` …). Header: `u16 phiên bản bản ghi, u16 0, u32 độ dài còn lại`. |
-| `trfd` | 17: trường @0x18 = `0x0514` (1300), @0x1C = 0; 18+: `0x06CC` (1740), @0x1C = `0x38` [ý nghĩa GĐ] |
+| `fver`, `vrsn` | version number |
+| `doc/mcfg` | Two forms: 17–20 (8323 bytes, header `u16=1300`) and 21–25 (7944 bytes, header `u16=2100`). Version 21+ omits 8 bytes at 0x365 and 371 bytes at 0x37A (the block contains the UTF‑16 string `CorelDefaultID_10900` …). Header: `u16 record version, u16 0, uint32 remaining length`. |
+| `trfd` | 17: field @0x18 = `0x0514` (1300), @0x1C = 0; 18+: `0x06CC` (1740), @0x1C = `0x38` [meaning is Phase] |
 | `metadata.xml` | `CoreVersion`, `Revision`, `DocFormatterId` |
-| `document.cdss` | `version`; GUID; từ 22 (2020) thêm khóa `"font_axes"` → 17 KB thành 25 KB |
-| `mcfg` của 24.3 | khác 24 ở vài byte (GĐ: cài đặt máy, không phải định dạng) |
+| `document.cdss` | `version`; GUID; from 22 (2020) add key `"font_axes"` → 17 KB become 25 KB |
+| `mcfg` of 24.3 | different 24 at few byte (Phase: install set machine, not defined form) |
 
-**Hệ quả:** trong dải X7–2023, với tài liệu đơn giản, hạ phiên bản = viết lại có chủ đích một số bản ghi (`fver`, `vrsn`, `mcfg`, `trfd`, `metadata.xml`, `document.cdss`) — đúng thứ Corel tự làm khi Save As, chứ **không phải** chỉ sửa số phiên bản. Hướng đi: **bộ chuyển đổi theo từng loại chunk** (chunk nào không đổi thì chép nguyên, chunk nào có quy tắc thì chuyển), thay vì giải mã toàn bộ rồi ghi lại từ đầu. Hướng này dễ hơn nhiều so với kiến trúc Reader → Model → Writer ban đầu cho dải này; kiến trúc đầy đủ vẫn cần cho phương án dự phòng và bản cũ hơn X7.
+**System result:** across X7–2023, even for this simple file, downgrading means rewriting the target-version fields (`fver`, `vrsn`, `mcfg`, `trfd`, `metadata.xml`, and `document.cdss`) exactly as Corel does with Save As—not merely changing the version number. The converter should process each chunk type: copy unchanged chunks and transform only chunks with known rules, rather than rewriting the entire file. This is a practical Reader → Model → Writer design for this range; broader structural knowledge is still needed for the project plan and versions older than X7.
 
-## 5. Đối tượng hình chữ nhật (page[1]/…/layr[3]/obj[0])
-- Đơn vị: **0,1 µm** (254 000 đơn vị/inch). `bbox` = (-1479500, -1047000, -479500, -1547000) → 100 × 50 mm ✓.
-- Gốc toạ độ / chiều trục Y: [GĐ] — cần T02 (dời 1 mm) để xác định.
-- `loda` (558 byte), kiểu bản ghi = 1 (rectangle, khớp cách gọi của libcdr). Header: `u32 length, u32 numArgs=6, u32 offsetBảngOffset=0x14, u32 offsetBảngKiểu=0x30, u32 chunkType=1`; kiểu đối số: 0x0A, 0x14, 0x1E, 0x64, 0xC9, 0x9C41.
-- Có **chuỗi JSON** trong `loda`: `{"fill":{"primaryColor":"RGB255,USER,255,0,0,100,…"},"outline":{…"width":"0"},"transparency":{}}`.
-- Hình học: chữ nhật kích thước gốc (double) 6 705 941 × −4 582 … nhân với ma trận `trfd` (6 double tại @0x28: a=0.14912, b=0, tx=−1479500, c=0, d=0.10912, ty=−1047000) → đúng 100 × 50 mm. Nghĩa là hình được vẽ rồi co giãn, Corel lưu kích thước gốc + ma trận.
-- `fild` (121 byte) và `outl` (237 byte) trong `doc ` chứa số `0x0960` = 2400 **ngay cả trong file X7** → bản ghi này Corel chép nguyên khi hạ phiên bản (số này không phải phiên bản tài liệu).
+## 5. Rectangle object (page[1]/…/layr[3]/obj[0])
+- Single position: **0,1 µm** (254 000 unit/inch). `bbox` = (-1479500, -1047000, -479500, -1547000) → 100 × 50 mm ✓.
+- Root coordinate system / Y-axis direction: [Phase] — requires T02 (move 1 mm) to define precisely.
+- `loda` (558 bytes), record type = 1 (rectangle, matching libcdr's identification). Header: `u32 length, u32 numArgs=6, u32 offsetTableOffset=0x14, u32 offsetTableType=0x30, u32 chunkType=1`; argument types: 0x0A, 0x14, 0x1E, 0x64, 0xC9, 0x9C41.
+- Has **string JSON** in `loda`: `{"fill":{"primaryColor":"RGB255,USER,255,0,0,100,…"},"outline":{…"width":"0"},"transparency":{}}`.
+- Geometry: the rectangle’s source size (double) is 6,705,941 × −4,582 …; applying the transformation matrix `trfd` (six doubles at @0x28: a=0.14912, b=0, tx=−1479500, c=0, d=0.10912, ty=−1047000) produces 100 × 50 mm. The shape was drawn and then scaled; Corel stores the source size and transformation matrix.
+- `fild` (121 bytes) and `outl` (237 bytes) in `doc ` contain `0x0960` = 2400 **even in the X7 file** → Corel copies this value unchanged during downgrade (it is not the file version).
 
-## 6. Câu hỏi còn mở
-1. File X7 do Corel 2022 hạ xuống có thật sự mở được trên X7 thật không (kể cả chuỗi JSON trong `loda`)? → cần thử.
-2. Ý nghĩa của khối 379 byte trong `mcfg` mà bản 21+ bỏ đi; khi hạ 21+ → ≤20 có thể chép từ khuôn T00 của bản đích.
-3. Mẫu tạo *gốc* trên X7 có khác mẫu do 2022 hạ xuống không?
+## 6. Open questions
+1. Does a file downgraded from Corel 2022 to X7 open successfully in real X7 (including all JSON strings in `loda`)? → requires testing.
+2. What is the meaning of the 379-byte block in `mcfg` that versions 21+ remove? When downgrading 21+ → ≤20, can it be copied from the target version’s T00 template?
+3. Does a sample created natively on X7 differ from one downgraded from 2022?
 
-## 7. Hạ 2020–2024 → 2019: đã có bản thử nghiệm (src/CConvert.Core)
-So 2024 với 2019 trên T00/T01: cây chunk giống hệt; `mcfg`, `trfd` và mọi chunk khác **trùng từng byte**. Khác biệt cần chuyển:
-1. `root.dat`: ký tự form type → `M`; `fver`, `vrsn` → 2100.
+## 7. Downgrade 2020–2024 → 2019: experimental implementation (src/CConvert.Core)
+Comparing 2024 with 2019 on T00/T01: the chunk tree is identical; `mcfg`, `trfd`, and every other chunk are **byte-for-byte identical**. The differences requiring conversion are:
+1. `root.dat`: character automatically form type → `M`; `fver`, `vrsn` → 2100.
 2. `metadata.xml`: `CoreVersion` → 2100, `DocFormatterId` → 1700.
-3. `document.cdss`: `version` → 2100; bỏ mọi khóa `font_axes`; trong object `paragraph` bỏ `levels`, `bulletFormat`, `bulletInheritFont`, `bulletNumberStyle`, `bulletFirstCharIndentIncludesBullet`, `numberInheritFont`. Quy tắc giống nhau cho mọi nguồn 2020–2024. Corel viết object rỗng là `{` + xuống dòng + `}`.
+3. `document.cdss`: `version` → 2100; skip every `font_axes` key; in the `paragraph` object, skip `levels`, `bulletFormat`, `bulletInheritFont`, `bulletNumberStyle`, `bulletFirstCharIndentIncludesBullet`, and `numberInheritFont`. The rule is the same for every 2020–2024 source. Corel writes an empty object as `{` + newline + `}`.
 
-Kết quả: chuyển T00/T01 từ 2020, 2021, 2022, 2023, 2024 → 2019 cho ra file **trùng từng byte** với file 2019 do Corel lưu (bỏ qua `Revision` và GUID ngẫu nhiên của palette) ở 9/10 trường hợp. Trường hợp còn lại (T00_24.3) khác vì chính file nguồn đã khác các bản T00 khác (`mcfg`, palette) — không phải lỗi chuyển đổi.
+Result: converting T00/T01 from 2020–2024 to 2019 produces output **byte-for-byte identical** to files saved by CorelDRAW 2019 (apart from `Revision` and naturally generated GUIDs) in 9/10 fields. The remaining T00_24.3 differences are already present in the source file (`mcfg`, palette), not conversion errors.
 
-Chunk/LIST/kiểu `loda` chưa có trong mẫu → bộ chuyển đổi cảnh báo rõ trong log thay vì im lặng chép qua.
+Unknown chunks, LISTs, or `loda` types cause the converter to log a clear warning instead of silently copying them.

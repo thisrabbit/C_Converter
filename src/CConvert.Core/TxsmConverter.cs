@@ -6,21 +6,21 @@ using System.Text.Json.Nodes;
 namespace CConvert.Core;
 
 /// <summary>
-/// Chuyển chunk text 'txsm' từ dạng 14 (CorelDRAW 2020+) về dạng 13 (2019).
-/// Quy tắc rút ra từ so sánh với file Corel tự Save As (docs/PhatHien-02-loda.md):
-///  - u32 tại 0x14: 14 → 13.
-///  - Các khối JSON style (u32 độ dài + JSON có thụt lề): bỏ khóa 2020+, cập nhật độ dài.
-///    Khối "paragraph" thiếu bulletFirstCharIndent được thêm giá trị mặc định 2019.
-///  - Cuối bản ghi (sau chuỗi text + byte 0): bản 14 có thêm cấu trúc danh sách
-///    u32 n, n × (u32 c, c × u32) — bản 13 không có → bỏ.
+/// Convert chunk text 'txsm' from form 14 (CorelDRAW 2020+) about form 13 (2019).
+/// Rules derived by comparing with files CorelDRAW saved using Save As (docs/PhatHien-02-loda.md):
+///  - u32 at 0x14: 14 → 13.
+///  - The block JSON style (uint32 length + JSON has indent margin): skip key 2020+, update log uint32.
+///    Block "paragraph" missing bulletFirstCharIndent is add value default 2019.
+///  - End record (after the text string and byte 0): version 14 adds a trailing record list
+///    u32 n, n × (u32 c, c × u32) — absent in version 13, so it is skipped.
 /// </summary>
 public static class TxsmConverter
 {
-    // Giá trị Corel 2019 ghi khi style không có (bullet mặc định '•' Arial 12pt).
+    // Value value Corel 2019 write when style does not have (bullet default '•' Arial 12pt).
     private const string DefaultBulletFirstCharIndent = "48676";
 
-    /// <param name="problem">Gọi khi gặp dạng text chưa biết (chế độ thử nghiệm biến thành lỗi).</param>
-    /// <param name="extraStrip">Lọc JSON bổ sung (chế độ thử nghiệm: theo lược đồ 2019); trả về số khóa đã bỏ.</param>
+    /// <param name="problem">Called when an unknown text form is encountered (experimental mode variable become error).</param>
+    /// <param name="extraStrip">Filter JSON add sung (experimental mode: according to schema diagram 2019); return about number key removed.</param>
     public static byte[]? Convert(byte[] d, Action<string> warn, Action<string>? problem = null, Func<JsonNode, int>? extraStrip = null)
     {
         problem ??= warn;
@@ -29,14 +29,14 @@ public static class TxsmConverter
         if (ver == 13) return null;
         if (ver != 14)
         {
-            problem($"Text dạng {ver} chưa gặp trong mẫu — chép nguyên.");
+            problem($"Text form {ver} not previously encountered in sample — copies it unchanged.");
             return null;
         }
 
         int tail = FindListTail(d);
         if (tail < 0)
         {
-            problem("Không xác định được cấu trúc cuối của khối text — chép nguyên (CorelDRAW 2019 vẫn mở được dạng này trong thử nghiệm).");
+            problem("Not exact defined is structure last of block text — copies it unchanged (CorelDRAW 2019 still opens successfully form this in experimental).");
             return null;
         }
 
@@ -60,10 +60,10 @@ public static class TxsmConverter
         return result;
     }
 
-    /// <summary>Vị trí bắt đầu cấu trúc danh sách ở cuối (ngay sau "chuỗi text + 0x00"), hoặc -1.</summary>
+    /// <summary>Start position of the final record list (immediately after "string text + 0x00"), or -1.</summary>
     private static int FindListTail(byte[] d)
     {
-        // Thử từ cuối về: chuỗi text = u32 L + L byte, theo sau 1 byte 0, rồi cấu trúc danh sách kéo đến hết bản ghi.
+        // Test from last about: text string = uint32 length + bytes, followed by one zero byte; the remaining bytes form the record list.
         for (int p = d.Length - 9; p >= 0x18; p--)
         {
             uint l = BinaryPrimitives.ReadUInt32LittleEndian(d.AsSpan(p));
@@ -91,7 +91,7 @@ public static class TxsmConverter
         return pos == d.Length;
     }
 
-    /// <summary>Các khối JSON: u32 độ dài ngay trước '{', JSON hợp lệ dài đúng độ dài đó.</summary>
+    /// <summary>The block JSON: uint32 length immediately before '{', JSON valid ratio long correct uint32 that.</summary>
     private static IEnumerable<(int Start, int Length)> FindJsonBlocks(byte[] d, int end)
     {
         int i = 4;
@@ -137,8 +137,8 @@ public static class TxsmConverter
 
         if (root["paragraph"] is JsonObject para)
         {
-            // 2020+ đo khoảng thụt dòng đầu tính cả bullet; 2019 đo sau bullet. Với bullet mặc định
-            // ('•' Arial 12pt, thụt 6,35 mm) giá trị 2019 đã biết chính xác; trường hợp khác cần đo font.
+            // 2020+ measures the first-line indentation before calculating all bullets; 2019 measures after the bullet. With the default bullet
+            // ('•' Arial 12pt, indent 6,35 mm) value 2019 already known main exact; field different requires measure font.
             bool known = false;
             if (Str(para, "bulletFirstCharIndent") == "63500" && Str(para, "bulletChar") == "22200000"
                 && para["bulletFont"] is JsonObject bf && Str(bf, "font") == "Arial" && Str(bf, "size") == "42333")
@@ -148,7 +148,7 @@ public static class TxsmConverter
                 changes++;
             }
             if (Str(para, "bulletOn") == "1" && !known)
-                warn("Văn bản có danh sách bullet: CorelDRAW 2019 tính khoảng cách chữ–bullet khác 2020+, chữ có thể lệch vài mm so với bản gốc.");
+                warn("Text contains a bullet list: CorelDRAW 2019 calculates text–bullet spacing differently from 2020+, text may be off by a few mm so relative to the source version.");
             if (para.Count > 0 && !para.ContainsKey("bulletFirstCharIndent"))
             {
                 CorelJson.InsertSorted(para, "bulletFirstCharIndent", JsonValue.Create(DefaultBulletFirstCharIndent)!);

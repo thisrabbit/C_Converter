@@ -1,6 +1,6 @@
-﻿# Bộ kiểm thử (chỉ dùng khi phát triển, KHÔNG phải phụ thuộc của C_Converter):
-# điều khiển CorelDRAW 2024 qua COM để vẽ từng mẫu, rồi lưu ra 2 bản:
-#   <tên>_25.cdr  (bản gốc 2024)   và   <tên>_21.cdr  (CorelDRAW tự "Save As" 2019 = đáp án)
+# Test harness (used only during development; not a C_Converter dependency):
+# Control CorelDRAW 2024 through COM, draw each sample, then save two versions:
+#   <name>_25.cdr  (version source 2024)   and   <name>_21.cdr  (CorelDRAW automatically "Save As" 2019 = answer plan)
 param(
     [string]$OutDir = (Join-Path $PSScriptRoot '..\..\samples\gen'),
     [string[]]$Only
@@ -11,7 +11,7 @@ $OutDir = (Resolve-Path $OutDir).Path
 $assets = Join-Path $OutDir 'assets'
 New-Item -ItemType Directory -Force $assets | Out-Null
 
-# Ảnh thử: PNG có nền trong suốt + JPG
+# Test image: transparent PNG background + JPG
 Add-Type -AssemblyName System.Drawing
 $png = Join-Path $assets 'alpha.png'
 if (-not (Test-Path $png)) {
@@ -32,7 +32,7 @@ if (-not (Test-Path $jpg)) {
 $app = New-Object -ComObject CorelDRAW.Application.25
 function Rgb($r, $g, $b) { $app.CreateRGBColor($r, $g, $b) }
 
-# Mỗi mẫu: tên => scriptblock nhận ($doc, $layer). Đơn vị: mm, gốc toạ độ góc dưới-trái trang.
+# Each sample: name => scriptblock receiving ($doc, $layer). Units are millimeters; the origin is the page’s bottom-left corner.
 $samples = [ordered]@{
     'T00_empty'      = { param($doc, $L) }
     'T01_rect'       = { param($doc, $L) $s = $L.CreateRectangle2(10, 10, 100, 50); $s.Fill.UniformColor.RGBAssign(255, 0, 0); $s.Outline.SetNoOutline() }
@@ -102,7 +102,7 @@ foreach ($name in $samples.Keys) {
         $doc.Close()
         $results += "OK    $name"
     } catch {
-        $results += "LỖI  $name : $($_.Exception.Message)"
+        $results += "ERROR  $name : $($_.Exception.Message)"
         try { $doc.Close() } catch {}
     }
 }

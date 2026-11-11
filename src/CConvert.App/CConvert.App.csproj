@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\CConvert.Core\CConvert.Core.csproj" />
@@ -8,7 +8,7 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>C_Converter</AssemblyName>
     <Product>C_Converter</Product>
-    <AssemblyTitle>C_Converter – Hạ phiên bản CorelDRAW</AssemblyTitle>
+    <AssemblyTitle>C_Converter – Downgrade CorelDRAW versions</AssemblyTitle>
     <Copyright>C_Converter</Copyright>
     <Version>1.0.0</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>

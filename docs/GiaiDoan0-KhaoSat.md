@@ -1,119 +1,120 @@
-# C_Converter — Giai đoạn 0: Khảo sát định dạng .cdr
+# C_Converter — Phase 0: Survey of the .cdr format
 
-Ký hiệu độ tin cậy:
-- **[Chắc]**: được nhiều nguồn độc lập xác nhận (libcdr, Inkscape/LibreOffice import, mở file ZIP thấy ngay).
-- **[libcdr]**: suy ra từ cách libcdr đọc file. Đúng cho mục đích *đọc*, nhưng chưa chắc đủ cho mục đích *ghi*.
-- **[GĐ]**: giả định, cần kiểm chứng bằng file mẫu.
+Confidence labels:
+- **[Certain]**: independently confirmed by multiple sources (libcdr, Inkscape/LibreOffice import, or direct inspection of ZIP files).
+- **[libcdr]**: inferred from how libcdr reads files. Reliable for *reading*, but not necessarily sufficient for *writing*.
+- **[Phase]**: an assumption requiring verification with sample files.
 
 ---
 
-## 1. Các nhóm phiên bản
+## 1. Version groups
 
-| Nhóm | Phiên bản (ước lượng) | Container | Ghi chú |
+| Group | Versions (estimated) | Container | Notes |
 |---|---|---|---|
-| A | CorelDRAW 1–2 | Không phải RIFF (chữ ký khác) [GĐ] | Bỏ qua, không có nhu cầu thực tế. |
-| B | 3 → X3 | RIFF trần: `RIFF <u32 size> "CDR?"` [Chắc] | Ký tự thứ 4 của form type đổi theo phiên bản [Chắc]; bảng tra ký tự→phiên bản [GĐ]. Từ khoảng v8 có chunk `cmpr` chứa dữ liệu nén zlib [libcdr]; mốc phiên bản bắt đầu dùng `cmpr` [GĐ]. |
-| C | X4 → hiện tại | File ZIP [Chắc], bên trong có luồng RIFF chính | Tên luồng theo libcdr: `content/riffData.cdr`, hoặc `content/root.dat` + `content/dataFileList.dat` + các `content/data/*.dat` [libcdr]; phiên bản nào dùng kiểu nào [GĐ]. Ngoài ra có `META-INF/`, metadata XML, ảnh thumbnail [GĐ về tên chính xác]. |
+| A | CorelDRAW 1–2 | Not RIFF (different signature) [Phase] | Skipped; there is no practical need. |
+| B | 3 → X3 | Bare RIFF: `RIFF <u32 size> "CDR?"` [Certain] | The fourth form-type character changes by version [Certain]; the character-to-version table is [Phase]. From about v8, a `cmpr` chunk contains zlib-compressed data [libcdr]; the first version using `cmpr` is [Phase]. |
+| C | X4 → present | ZIP containing the main RIFF stream [Certain] | Stream names according to libcdr: `content/riffData.cdr`, or `content/root.dat` + `content/dataFileList.dat` + `content/data/*.dat` [libcdr]. Which versions use which layout is [Phase]. The archive also contains `META-INF/`, metadata XML, and thumbnail images [exact names are Phase]. |
 
-Hệ quả quan trọng: **phần XML trong ZIP chủ yếu là metadata, không phải bản vẽ**. Hình học vẫn nằm trong RIFF nhị phân ở mọi phiên bản từ 3 trở lên [libcdr]. Vì vậy "hạ phiên bản" từ 2020 xuống X7 vẫn là bài toán ghi RIFF nhị phân, không phải chỉnh XML.
+Important consequence: **XML inside the ZIP is primarily metadata, not the drawing**. Geometry remains in binary RIFF data for every version from 3 onward [libcdr]. Therefore, downgrading from 2020 to X7 is a binary RIFF-writing problem, not an XML-editing problem.
 
-### Chunk thường gặp [libcdr — tên chunk; ý nghĩa từng trường bên trong cần kiểm chứng]
-- `vrsn`: số phiên bản dạng u16, ví dụ 1700 [libcdr]; ánh xạ /100 → tên sản phẩm (17 = X7…) [GĐ].
-- `LIST doc `: dữ liệu cấp tài liệu — `mcfg` (cấu hình trang), bảng màu/fill/outline/style dùng chung, font (`font`), bitmap (`bmp `), mũi tên (`arrw`)…
-- `LIST page` → `LIST layr` → `LIST obj ` / `LIST grp `: cây trang/layer/đối tượng/nhóm.
-- Trong đối tượng: `loda` (dữ liệu hình: rect/ellipse/path/text/bitmap…), `trfd` (ma trận biến đổi), `lgob`, `flgs`, `bbox`, `usdn`…
-- `fild`/`outl`: định nghĩa fill/outline, đối tượng tham chiếu bằng ID [libcdr]. Từ khoảng X6 cách lưu style thay đổi (`stlt`) [GĐ].
-- `txsm`/`stlt`: text và style; định dạng text thay đổi mạnh qua các phiên bản (Unicode từ khoảng X4) [GĐ].
-- `DISP`: ảnh xem trước [libcdr].
-- Đơn vị toạ độ và độ dài trường số khác nhau giữa bản cũ/mới (libcdr có nhánh riêng cho từng mốc phiên bản) [libcdr; giá trị cụ thể GĐ].
+### Common chunks [libcdr — names are known; field meanings require verification]
+- `vrsn`: u16 version number, for example 1700 [libcdr]; divide by 100 to map it to the product name (17 = X7…) [Phase].
+- `LIST doc `: document-level data — `mcfg` (page structure), shared color/fill/outline/style tables, fonts (`font`), bitmaps (`bmp `), and arrow names (`arrw`)…
+- `LIST page` → `LIST layr` → `LIST obj ` / `LIST grp `: page/layer/object/group tree.
+- Inside objects: `loda` (geometry data: rectangle/ellipse/path/text/bitmap…), `trfd` (transformation matrix), `lgob`, `flgs`, `bbox`, `usdn`…
+- `fild`/`outl`: fill/outline data and object references by ID [libcdr]. The style-save format changes around X6 (`stlt`) [Phase].
+- `txsm`/`stlt`: text and style; the text format changes substantially by version (Unicode from about X4) [Phase].
+- `DISP`: preview image [libcdr].
+- Coordinate scales and field numbers differ between old and new versions; libcdr has separate branches for each version milestone [libcdr; exact values are Phase].
 
-## 2. Khả thi — nói thẳng
+## 2. Feasibility
 
-| Hạng mục | Đánh giá |
+| Area | Assessment |
 |---|---|
-| Đọc cấu trúc chunk (cây RIFF, ZIP, cmpr) | **Khả thi cao.** Đã có công cụ `cdrdump`. |
-| Đọc hình học cơ bản, màu fill/outline | **Khả thi.** libcdr làm được; Inkscape/LibreOffice dùng nó để import. |
-| Đọc PowerClip, blend, mesh, lens, contour, effect | **Khó/không đầy đủ.** libcdr bỏ qua hoặc làm sai nhiều thứ trong nhóm này. |
-| **Ghi .cdr** | **Rủi ro lớn nhất của dự án.** Theo hiểu biết của tôi chưa có writer mã nguồn mở nào. libcdr chỉ cho biết trường nào cần *để vẽ*; nó không cho biết trường nào CorelDRAW *đòi hỏi khi mở* (ID chéo, style mặc định, `mcfg`, bảng font, các chunk mà libcdr bỏ qua). Phải tự reverse engineer bằng so sánh nhị phân và thử-sai trên CorelDRAW thật. |
-| Hạ phiên bản không mất mát | **Không khả thi tổng quát.** Kể cả CorelDRAW tự "Save As" phiên bản cũ cũng mất tính năng. Mục tiêu đúng là: giữ đúng hình ảnh, đơn giản hóa phần không ghi được, và báo cáo rõ. |
+| Reading chunk structure (RIFF tree, ZIP, `cmpr`) | **High feasibility.** The `cdrdump` utility already does this. |
+| Reading basic geometry, fill, outline, and color | **Feasible.** libcdr implements this, and Inkscape/LibreOffice use it for import. |
+| Reading PowerClip, blend, mesh, lens, contour, and effects | **Difficult/incomplete.** libcdr skips some of these or handles only limited cases. |
+| **Writing .cdr** | **The project’s greatest risk.** There is no known open-source writer implementation. libcdr only needs fields required for reading; CorelDRAW may require additional fields to open a file (IDs, default styles, `mcfg`, font tables, and chunks libcdr skips). These must be reverse-engineered through binary comparison and testing in real CorelDRAW. |
+| Lossless downgrading | **Not generally feasible.** CorelDRAW’s “Save As” to an older version can also lose features. The practical goal is to preserve the rendered result, avoid writing unsupported features, and report limitations clearly. |
 
-### Chiến lược writer đề xuất: "ghi dựa trên khuôn" (template-based)
-1. Với mỗi phiên bản đích, lấy một file *trống* do chính CorelDRAW phiên bản đó lưu làm khuôn.
-2. Giữ nguyên byte-for-byte mọi chunk chưa hiểu (`doc `, `mcfg`, style mặc định…).
-3. Chỉ chèn/thay cây `page/layr/obj` và các bảng fill/outline mà ta đã hiểu qua so sánh nhị phân.
-4. Tính lại mọi trường kích thước (RIFF/LIST, cmpr, ZIP).
+### Template-based writer strategy
+1. For each target version, create one empty file in that CorelDRAW version as a template.
+2. Keep every not-yet-understood chunk byte-for-byte unchanged (`doc `, `mcfg`, default styles…).
+3. Insert or transform only the `page/layr/obj` tree and fill/outline tables already understood through binary comparison.
+4. Recalculate every RIFF/LIST, `cmpr`, and ZIP size field.
 
-Cách này giảm mạnh lượng thứ phải hiểu trước khi có file đầu tiên CorelDRAW mở được. Khuôn là file do người dùng tự tạo bằng bản Corel của họ, không phân phối kèm phần mềm (cần cân nhắc thêm nếu muốn đóng gói sẵn).
+This reduces what must be understood before CorelDRAW can open the first generated file. The template is a file created by the user in the target CorelDRAW version, not a coordinate-only approximation.
 
-### Chọn phiên bản đích đầu tiên
-Về định dạng, RIFF cũ (nhóm B) đơn giản hơn. Về nhu cầu thực tế, nhiều khả năng cần X7/X6/X5 (nhóm C). Đề xuất: **chọn theo nhu cầu thực tế**, vì vỏ ZIP chỉ là lớp bọc; phần khó (RIFF bên trong) là như nhau. Câu hỏi này đang chờ trả lời (mục 6).
+### Choosing a target version
+The older RIFF format (group B) is simpler. In practice, meaningful support requires X7/X6/X5 (group C). Choose based on real-world needs: the ZIP wrapper is only a container, while the difficult part is the RIFF stream inside it.
 
-### Phương án dự phòng (chuyển đổi định dạng, không phải hạ phiên bản)
-- **PDF / AI (dạng PDF)**: hợp với CorelDRAW X3 trở lên [GĐ về chất lượng import từng bản].
-- **EPS / AI cũ (dạng PostScript)**: hợp với bản rất cũ.
-- **SVG**: import kém trên Corel đời cũ — chỉ dùng như lựa chọn cuối.
-- CMX (định dạng trao đổi của Corel) có thể là ứng viên tốt vì mọi bản Corel đều mở được, nhưng tài liệu công khai không đầy đủ [GĐ] — để sau.
+### Alternative export formats
+- **PDF / AI (PDF format):** valid in CorelDRAW X3 and later [import quality by version is Phase].
+- **EPS / old AI (PostScript):** valid for very old versions.
+- **SVG:** import quality is poor in older CorelDRAW versions; use only as a last resort.
+- **CMX:** Corel’s exchange format may be useful because all Corel versions can open it, but its data model is not fully understood [Phase].
 
-## 3. Rủi ro
+## 3. Risks
 
-1. CorelDRAW mở file sai cách "im lặng" (hiển thị thiếu, crash, hoặc báo file hỏng không nói lý do) → vòng lặp thử-sai chậm. Giảm thiểu: thay đổi từng chunk một, có kịch bản test cố định.
-2. Trường phụ thuộc chéo (ID fill/outline/style/font, bảng tham chiếu) — sai một ID có thể hỏng cả file.
-3. Có thể tồn tại checksum/hash ở đâu đó [GĐ — chưa thấy bằng chứng; so sánh mẫu sẽ cho biết].
-4. Text: font, encoding, kerning, paragraph — rất tốn công. Vì vậy kế hoạch chuyển text → curves là đúng; nhưng để chuyển thành curves cần **font có trên máy chạy C_Converter** và engine dựng glyph (ví dụ qua DirectWrite/FreeType).
-5. Bitmap: định dạng lưu, nén, palette, alpha khác nhau giữa các bản.
-6. Màu: CMYK/Pantone/ICC — ghi sai profile dễ lệch màu khi in.
-7. Mỗi bản phát hành phụ (SP/hotfix) có thể khác nhỏ trong định dạng [GĐ]. Cần ghi lại build chính xác của mẫu.
-8. Pháp lý (không phải tư vấn pháp lý): reverse engineering phục vụ tương thích thường được chấp nhận ở nhiều nơi, nhưng EULA CorelDRAW có thể cấm reverse engineering *phần mềm*. Ta chỉ phân tích *file dữ liệu*, không phân tích mã CorelDRAW. libcdr theo giấy phép MPL-2.0: dùng lại mã thì các file đó phải giữ MPL; chỉ đọc để tham khảo thì không ràng buộc.
+1. CorelDRAW may open a malformed file incorrectly or silently (missing content, a crash, or an unexplained corruption report). Repeated trial-and-error testing is slow; change one chunk at a time and test across versions.
+2. Auxiliary fields linking fill, outline, style, and font tables can invalidate the entire file when one ID is wrong.
+3. A checksum or hash may exist somewhere [Phase — not yet observed; sample comparison should reveal it].
+4. Text encoding, fonts, kerning, and paragraphs are expensive to reproduce. Converting text to curves is reliable, but requires the fonts and a glyph engine on the C_Converter machine (for example DirectWrite or FreeType).
+5. Bitmap formats, compression, palettes, and alpha channels differ by version.
+6. Incorrect CMYK/Pantone/ICC profiles can shift printed colors.
+7. Service packs and hotfixes may introduce small format differences [Phase]; record the exact build used for each sample.
+8. Reverse engineering may be restricted by the CorelDRAW EULA. This project analyzes file data, not CorelDRAW’s implementation. libcdr is available under MPL-2.0; derivative code must retain the license.
 
-## 4. Công cụ đối chiếu (chỉ dùng khi phát triển, không phải phụ thuộc của C_Converter)
-- **Inkscape** (import .cdr qua libcdr): render tham chiếu để so với preview của ta.
-- **libcdr `cdr2raw` / `cdr2xhtml`**: in luồng lệnh vẽ mà libcdr hiểu — rất hữu ích để đối chiếu Reader. Có thể cài qua MSYS2 [GĐ về tên gói].
-- **CorelDRAW trên máy test**: nguồn sự thật duy nhất cho Writer.
+## 4. Development comparison tools
 
-## 5. File mẫu cần chuẩn bị
+- **Inkscape** (imports `.cdr` through libcdr): render a reference for comparison.
+- **libcdr `cdr2raw` / `cdr2xhtml`:** useful for seeing what libcdr understands; installable through MSYS2 [Phase].
+- **CorelDRAW on a test machine:** the authoritative source for writer behavior.
 
-**Nguyên tắc vàng:** tạo mỗi thiết kế bằng bản CorelDRAW mới nhất bạn có, sau đó dùng chính CorelDRAW *File → Save As → chọn Version* để lưu ra từng phiên bản thấp hơn. Bộ file này vừa là dữ liệu RE, vừa là **đáp án**: file do Corel tự hạ phiên bản cho biết đầu ra đúng trông thế nào.
+## 5. Sample-file standard
 
-Đặt tên: `Txx_<mô tả>_<phiên bản>.cdr`, ví dụ `T01_rect_X7.cdr`. Ghi lại build chính xác (Help → About) vào `samples/VERSIONS.txt`.
+**Original rule:** for each required case, create the sample in the newest available CorelDRAW version, then use *File → Save As → choose Version* to save every supported older version. These files are test data; the Corel-saved versions are the expected answers.
 
-| Mã | Nội dung | Mục đích |
+Use names such as `Txx_<description>_<version>.cdr`, for example `T01_rect_X7.cdr`. Record the exact build from Help → About in `samples/VERSIONS.txt`.
+
+| Code | Content | Goal |
 |---|---|---|
-| T00 | Trang A4 trống, không đối tượng | Khuôn gốc cho writer |
-| T01 | 1 hình chữ nhật 100×50 mm tại (10,10) mm, fill đỏ RGB(255,0,0), không outline | Đối tượng tối thiểu |
-| T02 | Như T01, dời sang phải đúng 1 mm | Tìm trường toạ độ + đơn vị |
-| T03 | Như T01, fill CMYK(0,100,100,0) | Mã hóa màu CMYK |
-| T04 | Hai hình chữ nhật giống T01 cạnh nhau | ID, cấu trúc lặp |
-| T05 | Ellipse 50×30 mm | |
-| T06 | Đường thẳng 2 điểm, outline 1 mm đen | Outline |
-| T07 | Đường cong Bézier 4 node (vẽ bằng Bézier tool) | Path |
-| T08 | Như T06 nhưng outline nét đứt, màu xanh, có mũi tên | Outline nâng cao |
-| T09 | Hình chữ nhật bo góc | Thuộc tính rect |
-| T10 | Hình chữ nhật xoay 30° | Ma trận biến đổi |
-| T11 | Group gồm T01 + T05 | Nhóm |
-| T12 | 2 layer, mỗi layer 1 đối tượng | Layer |
-| T13 | 2 trang, kích thước khác nhau (A4 dọc, A5 ngang) | Nhiều trang |
-| T14 | Artistic text "Xin chào ĐƯỜNG" font Arial 24pt + một bản đã Convert to Curves | Text + tiếng Việt |
-| T15 | Paragraph text vài dòng | Text khung |
-| T16 | Bitmap: 1 PNG nhỏ có nền trong suốt + 1 JPG | Bitmap |
-| T17 | Linear gradient đỏ→xanh | Gradient |
+| T00 | Blank A4 page | Writer template |
+| T01 | One 100×50 mm rectangle at (10,10) mm, red RGB(255,0,0), no outline | Minimum object case |
+| T02 | T01 moved by exactly 1 mm | Locate coordinate fields and units |
+| T03 | T01 with CMYK(0,100,100,0) fill | Understand CMYK color encoding |
+| T04 | Two T01 rectangles touching | IDs and repeated structure |
+| T05 | 50×30 mm ellipse | Ellipse |
+| T06 | Two-point straight path, 1 mm black outline | Outline |
+| T07 | Four-node Bézier curve | Path |
+| T08 | T06 with dashed blue outline and arrowheads | Advanced outline |
+| T09 | Rounded rectangle | Rectangle geometry |
+| T10 | Rectangle rotated 30° | Transformation matrix |
+| T11 | Group containing T01 + T05 | Group |
+| T12 | Two layers, one object per layer | Layers |
+| T13 | Two pages with different sizes (A4 portrait, A5 landscape) | Multiple pages |
+| T14 | Artistic text “Xin hello PATH”, Arial 24 pt, plus a converted-to-curves copy | Text and Vietnamese language |
+| T15 | Several lines of paragraph text | Text frames |
+| T16 | Small transparent-background PNG and one JPG | Bitmaps |
+| T17 | Linear red-to-blue gradient | Gradient |
 | T18 | Radial gradient | Gradient |
-| T19 | PowerClip | Tính năng không hỗ trợ |
-| T20 | Blend giữa 2 hình | Tính năng không hỗ trợ |
-| T21 | Mesh fill | Tính năng không hỗ trợ |
-| T22 | Transparency / lens | Tính năng không hỗ trợ |
-| T99 | 3–5 file thật từ công việc (được phép chia sẻ) | Kiểm thử thực tế |
+| T19 | PowerClip | Unsupported feature |
+| T20 | Blend between two shapes | Unsupported feature |
+| T21 | Mesh fill | Unsupported feature |
+| T22 | Transparency/lens | Unsupported feature |
+| T99 | 3–5 real work files that may be shared | Real-world testing |
 
-Mỗi thiết kế lưu ở: bản mới nhất bạn có + mọi bản đích muốn hỗ trợ (ví dụ 2020, X8, X7, X6, X5, X4, X3). Nếu một bản lưu có tùy chọn (nén, nhúng font, lưu kèm CMX…), giữ mặc định và ghi lại.
+Save each case in the newest available version and every target version to support (for example 2020, X8, X7, X6, X5, X4, X3). If a save has options such as compression, embedded fonts, or CMX, keep the defaults and record them.
 
-## 6. Tiêu chí hoàn thành Giai đoạn 0
-- [x] `cdrdump` đọc được ZIP, RIFF, `cmpr` (đã chạy trên file giả lập; **chưa** chạy trên file .cdr thật).
-- [ ] `cdrdump` chạy trên toàn bộ file mẫu không dừng ở "không giống FourCC"; nếu dừng → sửa giả định về `cmpr`/đệm.
-- [ ] Bảng thực nghiệm: phiên bản ↔ container ↔ ký tự form type ↔ giá trị `vrsn` ↔ có `cmpr` hay không ↔ tên luồng RIFF trong ZIP.
-- [ ] So sánh T01/T02/T03/T04 ở một phiên bản: xác định được chunk/offset chứa toạ độ, màu, ID.
+## 6. Phase 0 completion criteria
+- [x] `cdrdump` reads ZIP, RIFF, and `cmpr` (already run on simulated files; **not yet** run on real `.cdr` files).
+- [ ] `cdrdump` runs on every sample without stopping at “unrecognized FourCC”; if it stops, revise the `cmpr`/padding assumptions.
+- [ ] Experimental table: version ↔ container ↔ form-type character ↔ `vrsn` ↔ presence of `cmpr` ↔ RIFF stream name in ZIP.
+- [ ] Compare T01/T02/T03/T04 in one version to locate coordinate, color, and ID chunks/offsets.
 
-## Cách dùng cdrdump
+## Using cdrdump
 ```
 dotnet run --project tools/CdrDump -c Release -- samples/T01_rect_X7.cdr --stats
 dotnet run --project tools/CdrDump -c Release -- samples/*.cdr --stats --out dumps
 ```
-Sau đó so sánh `dumps/T01_rect_X7.cdr.tree.txt` với `dumps/T01_rect_2020.cdr.tree.txt` bằng công cụ diff bất kỳ.
+Then compare `dumps/T01_rect_X7.cdr.tree.txt` with `dumps/T01_rect_2020.cdr.tree.txt` using any diff utility.

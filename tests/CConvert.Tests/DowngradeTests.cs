@@ -4,10 +4,10 @@ using CConvert.Core;
 namespace CConvert.Tests;
 
 /// <summary>
-/// So kết quả hạ 2024 → 2019 với file CorelDRAW 2024 tự "Save As 2019" (samples/gen/*_21.cdr).
-/// Các mẫu dưới đây đã được xác nhận trùng từng byte ở toàn bộ phần content/ (root.dat + data/*.dat).
-/// Những mẫu còn khác đều khác ở chỗ vô hại (GUID tự sinh, số thứ tự 0xA, txtj do 2019 tự tính lại)
-/// hoặc là giới hạn đã biết — xem docs/PhatHien-02-loda.md.
+/// Compare downgrade results 2024 → 2019 with file CorelDRAW 2024 automatically "Save As 2019" (samples/gen/*_21.cdr).
+/// The samples below were confirmed byte-for-byte identical at entire set part content/ (root.dat + data/*.dat).
+/// Remaining differences are harmless (auto-generated GUIDs, ordinal 0xA, and txtj recalculated by 2019)
+/// or are known limitations — see docs/PhatHien-02-loda.md.
 /// </summary>
 public class DowngradeTests
 {
@@ -38,7 +38,7 @@ public class DowngradeTests
             var names = corel.Entries.Where(e => e.FullName.StartsWith("content/")).Select(e => e.FullName).ToList();
             Assert.Equal(names, ours.Entries.Where(e => e.FullName.StartsWith("content/")).Select(e => e.FullName));
             foreach (string n in names)
-                Assert.True(Read(ours.GetEntry(n)!).SequenceEqual(Read(corel.GetEntry(n)!)), $"{name}: {n} khác Corel");
+                Assert.True(Read(ours.GetEntry(n)!).SequenceEqual(Read(corel.GetEntry(n)!)), $"{name}: {n} differ from Corel");
         }
         finally
         {
@@ -85,9 +85,9 @@ public class DowngradeTests
     }
 
     [Theory]
-    [InlineData("9f000000", "78010000")] // 'Ÿ' — mẫu thật
+    [InlineData("9f000000", "78010000")] // 'Ÿ' — sample real
     [InlineData("95000000", "22200000")] // '•'
-    [InlineData("22200000", null)]       // đã là Unicode
+    [InlineData("22200000", null)]       // already Unicode
     [InlineData("41000000", null)]
     public void Bullet_char_maps_cp1252_to_unicode(string input, string? expected) =>
         Assert.Equal(expected, CorelJson.MapBulletChar(input));

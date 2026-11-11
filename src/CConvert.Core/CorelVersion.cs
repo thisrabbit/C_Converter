@@ -1,22 +1,22 @@
 namespace CConvert.Core;
 
 /// <summary>
-/// Thông tin nhận dạng một phiên bản CorelDRAW trong file .cdr dạng ZIP.
-/// Mọi giá trị dưới đây đọc từ file mẫu do CorelDRAW 2024 "Save As" ra (docs/PhatHien-01-T00-T01.md).
+/// Information about form one version CorelDRAW in file .cdr ZIP format.
+/// All values below read from sample files created by CorelDRAW 2024 "Save As" out (docs/PhatHien-01-T00-T01.md).
 /// </summary>
-/// <param name="Vrsn">Giá trị chunk vrsn, vd 2100.</param>
-/// <param name="FormChar">Ký tự thứ 4 của form type RIFF "CDR?".</param>
-/// <param name="FverMajor">Byte 6 của fver.</param>
-/// <param name="FverMinor">Byte 5 của fver (bản cập nhật, vd 2023 = 3).</param>
-/// <param name="DocFormatterId">inTxt:DocFormatterId trong META-INF/metadata.xml.</param>
+/// <param name="Vrsn">Value value chunk vrsn, vd 2100.</param>
+/// <param name="FormChar">The fourth character of the RIFF form type "CDR?".</param>
+/// <param name="FverMajor">Byte 6 of fver.</param>
+/// <param name="FverMinor">Byte 5 of fver (update version, vd 2023 = 3).</param>
+/// <param name="DocFormatterId">inTxt:DocFormatterId in META-INF/metadata.xml.</param>
 public sealed record CorelVersion(string Name, ushort Vrsn, char FormChar, byte FverMajor, byte FverMinor, int DocFormatterId)
 {
-    /// <summary>Phiên bản mới hơn 2024 chưa có mẫu để kiểm chứng (chế độ thử nghiệm).</summary>
+    /// <summary>Version newer version 2024 does not have sample for verification (experimental mode).</summary>
     public bool IsExperimental { get; init; }
 
     /// <summary>
-    /// Nguồn mới hơn 2024 (vrsn &gt; 2500). Tên sản phẩm là ngoại suy từ quy luật 17→X7 … 25→2024
-    /// (GIẢ ĐỊNH: 26 = 2025, 27 = 2026), chỉ dùng để hiển thị.
+    /// Source newer than 2024 (vrsn &gt; 2500). Name product product is external inference from rule 17→X7 … 25→2024
+    /// (ASSUMED: 26 = 2025, 27 = 2026); used for display only.
     /// </summary>
     public static CorelVersion? Experimental(ushort vrsn)
     {
@@ -26,7 +26,7 @@ public sealed record CorelVersion(string Name, ushort Vrsn, char FormChar, byte 
         return new CorelVersion(name, vrsn, '?', (byte)major, (byte)(vrsn % 100 / 10), 0) { IsExperimental = true };
     }
 
-    /// <summary>Phiên bản đã kiểm chứng, hoặc phiên bản thử nghiệm nếu mới hơn 2024.</summary>
+    /// <summary>Version version already verified, or version experimental if new more 2024.</summary>
     public static CorelVersion? Recognize(ushort vrsn) => FromVrsn(vrsn) ?? Experimental(vrsn);
 
     public static readonly CorelVersion X7 = new("X7", 1700, 'H', 0x11, 0, 1700);
@@ -45,11 +45,11 @@ public sealed record CorelVersion(string Name, ushort Vrsn, char FormChar, byte 
 
     public static CorelVersion? FromVrsn(ushort vrsn) => All.FirstOrDefault(v => v.Vrsn == vrsn);
 
-    /// <summary>8 byte nội dung chunk fver: u16 vrsn, u16 1, u8 0, u8 minor, u8 major, u8 0.</summary>
+    /// <summary>8 byte content chunk fver: u16 vrsn, u16 1, u8 0, u8 minor, u8 major, u8 0.</summary>
     public byte[] FverBytes() =>
         [(byte)Vrsn, (byte)(Vrsn >> 8), 1, 0, 0, FverMinor, FverMajor, 0];
 
     public override string ToString() => IsExperimental
-        ? $"CorelDRAW {Name} ({Vrsn}, thử nghiệm)"
+        ? $"CorelDRAW {Name} ({Vrsn}, experimental)"
         : $"CorelDRAW {Name} ({Vrsn})";
 }

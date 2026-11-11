@@ -2,7 +2,7 @@ using System.IO.Compression;
 
 namespace CConvert.Core;
 
-/// <summary>File .cdr dạng ZIP, giữ nguyên thứ tự mục và cách nén như CorelDRAW ghi.</summary>
+/// <summary>File .cdr ZIP format, unchanged item automatically entry and way compressed as CorelDRAW write.</summary>
 public sealed class CdrPackage
 {
     public const string MimeType = "application/x-vnd.corel.zcf.draw.document+zip";
@@ -21,7 +21,7 @@ public sealed class CdrPackage
         Entries.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
 
     public Entry Get(string name) =>
-        Find(name) ?? throw new InvalidDataException($"File .cdr thiếu mục '{name}'.");
+        Find(name) ?? throw new InvalidDataException($"File .cdr missing entry '{name}'.");
 
     public static CdrPackage Load(string path)
     {
@@ -44,13 +44,13 @@ public sealed class CdrPackage
     }
 
     /// <summary>
-    /// Ghi ra file mới. Không bao giờ ghi đè file đã tồn tại; ghi vào file tạm rồi đổi tên
-    /// để không để lại file dở dang nếu có lỗi giữa chừng.
+    /// Record out file new. Never overwrite file already exist at; write into file temporary then change name
+    /// so an unfinished output file is not left behind if an error occurs.
     /// </summary>
     public void Save(string path)
     {
         if (File.Exists(path))
-            throw new IOException($"File đích đã tồn tại: {path}");
+            throw new IOException($"File target already exist at: {path}");
         string temp = path + ".c_converter.tmp";
         try
         {
@@ -59,7 +59,7 @@ public sealed class CdrPackage
             {
                 foreach (var e in Entries)
                 {
-                    // Giống ODF: "mimetype" phải là mục đầu tiên và không nén.
+                    // Same ODF: "mimetype" must is first entry first and not compressed.
                     var level = e.Name == "mimetype" ? CompressionLevel.NoCompression : CompressionLevel.Optimal;
                     var ze = zip.CreateEntry(e.Name, level);
                     ze.LastWriteTime = e.LastWrite;
